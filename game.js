@@ -164,179 +164,83 @@ function drawPlanet() {
     ctx.lineWidth = 2 * zoom;
     ctx.stroke();
 
-    // Поверхность планеты с имитацией объёма шара
+    // Тестовая сферическая сетка
     ctx.save();
 
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.clip();
 
-    const surfaceSize = radius * 2;
+    const gridColor = "rgba(120, 200, 255, 0.35)";
 
-    // Смещение поверхности по долготе
-    const surfaceCycle = radius * 1.8;
+    // Вертикальные линии сферы
+    for (let longitude = -80; longitude <= 80; longitude += 20) {
+        const longitudeRad =
+            (longitude * Math.PI) / 180;
 
-    const rotationOffset =
-        ((planetRotation * radius * 0.12) % surfaceCycle + surfaceCycle) % surfaceCycle;
+        const xOffset =
+            Math.sin(longitudeRad + planetRotation) *
+            radius;
 
-    // Океан
-    const oceanGradient = ctx.createRadialGradient(
-        centerX - radius * 0.35,
-        centerY - radius * 0.4,
-        radius * 0.05,
-        centerX,
-        centerY,
-        radius
-    );
+        const widthFactor =
+            Math.cos(longitudeRad + planetRotation);
 
-    oceanGradient.addColorStop(
-        0,
-        "rgba(80, 160, 205, 0.55)"
-    );
-
-    oceanGradient.addColorStop(
-        0.45,
-        "rgba(35, 110, 160, 0.4)"
-    );
-
-    oceanGradient.addColorStop(
-        0.75,
-        "rgba(15, 65, 100, 0.3)"
-    );
-
-    oceanGradient.addColorStop(
-        1,
-        "rgba(0, 20, 40, 0)"
-    );
-
-    ctx.fillStyle = oceanGradient;
-
-    ctx.fillRect(
-        centerX - radius,
-        centerY - radius,
-        surfaceSize,
-        surfaceSize
-    );
-
-    // Материки
-    const continents = [
-        {
-            x: -0.42,
-            y: -0.18,
-            width: 0.48,
-            height: 0.25,
-            rotation: -0.2
-        },
-        {
-            x: 0.08,
-            y: -0.32,
-            width: 0.36,
-            height: 0.22,
-            rotation: 0.35
-        },
-        {
-            x: 0.3,
-            y: 0.12,
-            width: 0.42,
-            height: 0.27,
-            rotation: -0.3
-        },
-        {
-            x: -0.2,
-            y: 0.3,
-            width: 0.32,
-            height: 0.18,
-            rotation: 0.15
+        if (widthFactor <= 0) {
+            continue;
         }
-    ];
 
-    for (const continent of continents) {
-        const baseContinentX =
-            centerX +
-            continent.x * radius +
-            rotationOffset;
+        ctx.beginPath();
 
-        const continentY =
+        ctx.ellipse(
+            centerX + xOffset * 0.55,
+            centerY,
+            Math.max(1, radius * 0.55 * widthFactor),
+            radius,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Горизонтальные линии сферы
+    for (let latitude = -60; latitude <= 60; latitude += 20) {
+        const latitudeRad =
+            (latitude * Math.PI) / 180;
+
+        const y =
             centerY +
-            continent.y * radius;
+            Math.sin(latitudeRad) * radius;
 
-        const continentWidth =
-            continent.width * radius;
+        const width =
+            Math.cos(latitudeRad) * radius;
 
-        const continentHeight =
-            continent.height * radius;
-
-        // Чем дальше от центра — тем сильнее сжимаем материк
-        const wrapWidth = radius * 1.8;
-
-        const continentPositions = [
-            baseContinentX - wrapWidth,
-            baseContinentX,
-            baseContinentX + wrapWidth
-        ];
-
-        for (const continentX of continentPositions) {
-            const distanceFromCenter =
-                Math.abs(continentX - centerX) / radius;
-
-            if (distanceFromCenter >= 1) {
-                continue;
-            }
-
-            const depthFactor =
-                Math.sqrt(
-                    Math.max(
-                        0,
-                        1 - distanceFromCenter * distanceFromCenter
-                    )
-                );
-
-            const visibleWidth =
-                continentWidth *
-                Math.max(0.15, depthFactor);
-
-            const continentGradient = ctx.createRadialGradient(
-                continentX - visibleWidth * 0.25,
-                continentY - continentHeight * 0.25,
-                0,
-                continentX,
-                continentY,
-                visibleWidth
-            );
-
-            continentGradient.addColorStop(
-                0,
-                "rgba(105, 160, 105, 0.8)"
-            );
-
-            continentGradient.addColorStop(
-                0.55,
-                "rgba(65, 115, 75, 0.65)"
-            );
-
-            continentGradient.addColorStop(
-                1,
-                "rgba(25, 65, 50, 0)"
-            );
-
-            ctx.beginPath();
-
-            ctx.ellipse(
-                continentX,
-                continentY,
-                visibleWidth,
-                continentHeight,
-                continent.rotation,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fillStyle = continentGradient;
-            ctx.fill();
+        if (width <= 0) {
+            continue;
         }
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            centerX,
+            y,
+            width,
+            Math.max(1, radius * 0.08),
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
     }
 
     ctx.restore();
+
 }
 
 function updateCamera() {
