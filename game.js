@@ -174,8 +174,10 @@ function drawPlanet() {
     const surfaceSize = radius * 2;
 
     // Смещение поверхности по долготе
+    const surfaceCycle = radius * 1.8;
+
     const rotationOffset =
-        planetRotation * radius * 0.12;
+        ((planetRotation * radius * 0.12) % surfaceCycle + surfaceCycle) % surfaceCycle;
 
     // Океан
     const oceanGradient = ctx.createRadialGradient(
@@ -249,7 +251,7 @@ function drawPlanet() {
     ];
 
     for (const continent of continents) {
-        const continentX =
+        const baseContinentX =
             centerX +
             continent.x * radius +
             rotationOffset;
@@ -265,66 +267,73 @@ function drawPlanet() {
             continent.height * radius;
 
         // Чем дальше от центра — тем сильнее сжимаем материк
-        const distanceFromCenter =
-            Math.abs(continentX - centerX) / radius;
+        const wrapWidth = radius * 1.8;
 
-        const depthFactor =
-            Math.max(
-                0.15,
+        const continentPositions = [
+            baseContinentX - wrapWidth,
+            baseContinentX,
+            baseContinentX + wrapWidth
+        ];
+
+        for (const continentX of continentPositions) {
+            const distanceFromCenter =
+                Math.abs(continentX - centerX) / radius;
+
+            if (distanceFromCenter >= 1) {
+                continue;
+            }
+
+            const depthFactor =
                 Math.sqrt(
                     Math.max(
                         0,
                         1 - distanceFromCenter * distanceFromCenter
                     )
-                )
+                );
+
+            const visibleWidth =
+                continentWidth *
+                Math.max(0.15, depthFactor);
+
+            const continentGradient = ctx.createRadialGradient(
+                continentX - visibleWidth * 0.25,
+                continentY - continentHeight * 0.25,
+                0,
+                continentX,
+                continentY,
+                visibleWidth
             );
 
-        const visibleWidth =
-            continentWidth * depthFactor;
+            continentGradient.addColorStop(
+                0,
+                "rgba(105, 160, 105, 0.8)"
+            );
 
-        // Не рисуем материки, которые полностью ушли за край
-        if (distanceFromCenter >= 1) {
-            continue;
+            continentGradient.addColorStop(
+                0.55,
+                "rgba(65, 115, 75, 0.65)"
+            );
+
+            continentGradient.addColorStop(
+                1,
+                "rgba(25, 65, 50, 0)"
+            );
+
+            ctx.beginPath();
+
+            ctx.ellipse(
+                continentX,
+                continentY,
+                visibleWidth,
+                continentHeight,
+                continent.rotation,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = continentGradient;
+            ctx.fill();
         }
-
-        const continentGradient = ctx.createRadialGradient(
-            continentX - visibleWidth * 0.25,
-            continentY - continentHeight * 0.25,
-            0,
-            continentX,
-            continentY,
-            visibleWidth
-        );
-
-        continentGradient.addColorStop(
-            0,
-            "rgba(105, 160, 105, 0.8)"
-        );
-
-        continentGradient.addColorStop(
-            0.55,
-            "rgba(65, 115, 75, 0.65)"
-        );
-
-        continentGradient.addColorStop(
-            1,
-            "rgba(25, 65, 50, 0)"
-        );
-
-        ctx.beginPath();
-
-        ctx.ellipse(
-            continentX,
-            continentY,
-            visibleWidth,
-            continentHeight,
-            continent.rotation,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fillStyle = continentGradient;
-        ctx.fill();
     }
 
     ctx.restore();
