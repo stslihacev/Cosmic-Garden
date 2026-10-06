@@ -354,12 +354,10 @@ oceanMaskTexture.colorSpace = THREE.SRGBColorSpace;
 oceanMaskTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
 const oceanGeometry = new THREE.SphereGeometry(1.003, 128, 128);
-const oceanMaterial = new THREE.MeshPhysicalMaterial({
+const oceanMaterial = new THREE.MeshStandardMaterial({
     color: 0x0a4772,
-    roughness: 0.20,
-    metalness: 0.02,
-    clearcoat: 0.55,
-    clearcoatRoughness: 0.12,
+    roughness: 0.34,
+    metalness: 0.0,
     transparent: true,
     opacity: 0.62,
     alphaMap: oceanMaskTexture,
