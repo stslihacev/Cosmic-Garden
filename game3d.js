@@ -178,11 +178,11 @@ function getTerrain(direction) {
     );
 
     // Keep ordinary terrain subtle. Mountains carry most of the relief.
-    const rolling = Math.pow(landElevation, 1.55) * 0.018;
-    const mountain = Math.pow(field.mountainMask, 1.45) * 0.050;
-    const coastLift = coast * 0.004;
+    const rolling = Math.pow(landElevation, 1.55) * 0.015;
+    const mountain = Math.pow(field.mountainMask, 1.45) * 0.042;
+    const coastLift = coast * 0.003;
 
-    const height = 1.006 + coastLift + rolling + mountain;
+    const height = 1.004 + coastLift + rolling + mountain;
 
     let type = "lowland";
 
@@ -203,7 +203,7 @@ function getTerrain(direction) {
 
 // An icosphere gives nearly uniform triangles over the whole planet.
 // This removes the lat/long grid look of a UV sphere and keeps relief smooth.
-const planetGeometry = new THREE.IcosahedronGeometry(1, 6);
+const planetGeometry = new THREE.IcosahedronGeometry(1, 7);
 const positionAttribute = planetGeometry.attributes.position;
 const vertex = new THREE.Vector3();
 const direction = new THREE.Vector3();
@@ -220,6 +220,7 @@ for (let i = 0; i < positionAttribute.count; i++) {
 
 positionAttribute.needsUpdate = true;
 planetGeometry.computeVertexNormals();
+planetGeometry.attributes.normal.needsUpdate = true;
 
 // ============================================================
 // PLANET TEXTURE
@@ -298,7 +299,7 @@ planetTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
 const planetMaterial = new THREE.MeshStandardMaterial({
     map: planetTexture,
-    roughness: 0.78,
+    roughness: 0.88,
     metalness: 0.0
 });
 
@@ -388,14 +389,14 @@ scene.add(atmosphere);
 // LIGHTING
 // ============================================================
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.22);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.28);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.95);
 sunLight.position.set(-3.5, 2.0, 4.5);
 scene.add(sunLight);
 
-const fillLight = new THREE.DirectionalLight(0x6b9dcc, 0.18);
+const fillLight = new THREE.DirectionalLight(0x6b9dcc, 0.12);
 fillLight.position.set(4, -1, -3);
 scene.add(fillLight);
 
