@@ -101,57 +101,42 @@ function terrainField(direction) {
     const y = direction.y;
     const z = direction.z;
 
-    // Very broad continents.
-    const continental = fbm(
-        x * 1.15 + 4.0,
-        y * 1.15 - 2.0,
-        z * 1.15 + 7.0,
-        5
-    );
+    // Low-frequency fields define broad continental masses and keep
+    // coastlines large, organic and free of obvious repetition.
+    const continentalA = fbm(x * 1.05 + 4.0, y * 1.05 - 2.0, z * 1.05 + 7.0, 5);
+    const continentalB = fbm(x * 1.75 - 13.0, y * 1.75 + 8.0, z * 1.75 + 2.0, 4);
+    const continental = continentalA * 0.78 + continentalB * 0.22;
 
-    // Regional geological variation.
-    const regional = fbm(
-        x * 2.35 - 11.0,
-        y * 2.35 + 6.0,
-        z * 2.35 + 3.0,
-        4
-    );
+    // Regional geology gives each continent broad lowlands, uplands and plateaus.
+    const regionalA = fbm(x * 2.55 - 11.0, y * 2.55 + 6.0, z * 2.55 + 3.0, 5);
+    const regionalB = fbm(x * 4.2 + 18.0, y * 4.2 - 9.0, z * 4.2 - 14.0, 4);
+    const regional = regionalA * 0.72 + regionalB * 0.28;
 
-    // Small detail is intentionally weak: it should enrich the surface,
-    // not turn it into a collection of visible blocks.
-    const detail = fbm(
-        x * 5.5 + 9.0,
-        y * 5.5 - 14.0,
-        z * 5.5 + 2.0,
-        3
-    );
+    // Fine detail stays restrained so plains read as terrain, not noise.
+    const detail = fbm(x * 8.0 + 9.0, y * 8.0 - 14.0, z * 8.0 + 2.0, 3);
 
-    const land = smoothstep(0.475, 0.565, continental);
+    // Several ridge scales combine into connected mountain systems.
+    const ridgeLarge = ridgedFbm(x * 2.35 + 23.0, y * 2.35 - 17.0, z * 2.35 + 5.0, 5);
+    const ridgeRegional = ridgedFbm(x * 4.8 - 7.0, y * 4.8 + 13.0, z * 4.8 - 19.0, 4);
+    const ridgeDetail = ridgedFbm(x * 8.5 + 31.0, y * 8.5 - 21.0, z * 8.5 + 11.0, 3);
 
-    // Broad elevation field.
-    const elevation = regional * 0.78 + detail * 0.22;
+    const land = smoothstep(0.47, 0.565, continental);
 
-    // Ridged terrain creates long mountain systems rather than isolated bumps.
-    const ridgeLarge = ridgedFbm(
-        x * 2.7 + 23.0,
-        y * 2.7 - 17.0,
-        z * 2.7 + 5.0,
-        4
-    );
+    const elevation =
+        regionalA * 0.68 +
+        regionalB * 0.22 +
+        detail * 0.10;
 
-    const ridgeRegional = ridgedFbm(
-        x * 5.0 - 7.0,
-        y * 5.0 + 13.0,
-        z * 5.0 - 19.0,
-        3
-    );
+    const mountainBelts = smoothstep(0.58, 0.78, elevation);
+    const mountainStructure =
+        ridgeLarge * 0.58 +
+        ridgeRegional * 0.30 +
+        ridgeDetail * 0.12;
 
-    const mountainBelts = smoothstep(0.64, 0.82, elevation);
     const mountainMask =
         land *
         mountainBelts *
-        smoothstep(0.38, 0.70, ridgeLarge) *
-        (0.72 + ridgeRegional * 0.28);
+        smoothstep(0.38, 0.72, mountainStructure);
 
     return {
         continental,
@@ -159,7 +144,8 @@ function terrainField(direction) {
         detail,
         elevation,
         land,
-        mountainMask
+        mountainMask,
+        mountainStructure
     };
 }
 
@@ -170,40 +156,50 @@ function getTerrain(direction) {
         return { ...field, isLand: false, height: 1.0, type: "ocean" };
     }
 
-    const coast = smoothstep(0.50, 0.72, field.land);
+    const coast = smoothstep(0.50, 0.70, field.land);
     const landElevation = THREE.MathUtils.clamp(
-        (field.elevation - 0.34) / 0.66,
+        (field.elevation - 0.32) / 0.68,
         0,
         1
     );
 
-    // Keep ordinary terrain subtle. Mountains carry most of the relief.
-    const rolling = Math.pow(landElevation, 1.55) * 0.015;
-    const mountain = Math.pow(field.mountainMask, 1.45) * 0.042;
-    const coastLift = coast * 0.003;
+    // Broad rolling terrain.
+    const rolling = Math.pow(landElevation, 1.45) * 0.020;
 
-    const height = 1.004 + coastLift + rolling + mountain;
+    // Mountain ranges rise progressively from surrounding terrain.
+    const mountainRise = Math.pow(field.mountainMask, 1.65) * 0.070;
+
+    // Very small coastal lift keeps the shoreline from looking laser-flat.
+    const coastLift = coast * 0.004;
+
+    const height = 1.004 + coastLift + rolling + mountainRise;
 
     let type = "lowland";
 
-    if (field.mountainMask > 0.46) {
+    if (field.mountainMask > 0.50) {
         type = "mountain";
-    } else if (landElevation > 0.64) {
+    } else if (landElevation > 0.67) {
         type = "highland";
-    } else if (coast < 0.22) {
+    } else if (coast < 0.24) {
         type = "coast";
     }
 
-    return { ...field, isLand: true, height, type };
+    return {
+        ...field,
+        isLand: true,
+        height,
+        type,
+        coast,
+        landElevation
+    };
 }
-
 // ============================================================
 // PLANET GEOMETRY
 // ============================================================
 
 // A high-resolution UV sphere gives smooth, continuous normals while the terrain is displaced in real geometry.
 // This avoids the visible triangular/diamond facets produced by an icosphere.
-const planetGeometry = new THREE.SphereGeometry(1, 192, 128);
+const planetGeometry = new THREE.SphereGeometry(1, 256, 160);
 const positionAttribute = planetGeometry.attributes.position;
 const vertex = new THREE.Vector3();
 const direction = new THREE.Vector3();
@@ -261,27 +257,33 @@ for (let y = 0; y < textureCanvas.height; y++) {
             green = 24 + shelf * 30;
             blue = 54 + shelf * 46;
         } else {
-            const elevation = THREE.MathUtils.clamp((terrain.elevation - 0.30) / 0.70, 0, 1);
-            const coastAmount = smoothstep(0.5, 0.7, terrain.land);
+            const elevation = THREE.MathUtils.clamp(terrain.landElevation ?? 0, 0, 1);
+            const mountain = THREE.MathUtils.clamp(terrain.mountainMask, 0, 1);
+            const localVariation = (terrain.detail - 0.5) * 8.0;
 
             if (terrain.type === "mountain") {
-                const snow = smoothstep(0.58, 0.90, terrain.mountainMask);
-                red = 78 + snow * 105;
-                green = 86 + snow * 98;
-                blue = 61 + snow * 92;
+                const rock = mountain * 0.72 + elevation * 0.28;
+                const snow = smoothstep(0.72, 0.94, rock);
+                red = 74 + rock * 32 + snow * 62;
+                green = 82 + rock * 24 + snow * 58;
+                blue = 64 + rock * 22 + snow * 52;
             } else if (terrain.type === "highland") {
-                red = 58 + elevation * 30;
-                green = 105 + elevation * 20;
-                blue = 52 + elevation * 12;
+                red = 58 + elevation * 26;
+                green = 98 + elevation * 24;
+                blue = 50 + elevation * 12;
             } else if (terrain.type === "coast") {
-                red = 72 + coastAmount * 12;
-                green = 105 + coastAmount * 18;
-                blue = 58 + coastAmount * 8;
+                red = 30 + elevation * 12;
+                green = 91 + elevation * 20;
+                blue = 60 + elevation * 10;
             } else {
-                red = 38 + elevation * 30;
-                green = 100 + elevation * 24;
-                blue = 45 + elevation * 14;
+                red = 34 + elevation * 28;
+                green = 88 + elevation * 26;
+                blue = 42 + elevation * 14;
             }
+
+            red += localVariation * 0.7;
+            green += localVariation;
+            blue += localVariation * 0.5;
         }
 
         const index = (y * textureCanvas.width + x) * 4;
