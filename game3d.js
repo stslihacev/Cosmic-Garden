@@ -201,7 +201,9 @@ function getTerrain(direction) {
 // PLANET GEOMETRY
 // ============================================================
 
-// An icosphere gives nearly uniform triangles over the whole planet.\n// This removes the lat/long grid look of a UV sphere and keeps relief smooth.\nconst planetGeometry = new THREE.IcosahedronGeometry(1, 6);
+// An icosphere gives nearly uniform triangles over the whole planet.
+// This removes the lat/long grid look of a UV sphere and keeps relief smooth.
+const planetGeometry = new THREE.IcosahedronGeometry(1, 6);
 const positionAttribute = planetGeometry.attributes.position;
 const vertex = new THREE.Vector3();
 const direction = new THREE.Vector3();
@@ -224,8 +226,8 @@ planetGeometry.computeVertexNormals();
 // ============================================================
 
 const textureCanvas = document.createElement("canvas");
-textureCanvas.width = 1024;
-textureCanvas.height = 512;
+textureCanvas.width = 2048;
+textureCanvas.height = 1024;
 
 const textureContext = textureCanvas.getContext("2d");
 const imageData = textureContext.createImageData(textureCanvas.width, textureCanvas.height);
