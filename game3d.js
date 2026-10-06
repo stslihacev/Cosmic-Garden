@@ -15,7 +15,8 @@ renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
 // ============================================================
-// PROCEDURAL NOISE
+// PROCEDURAL TERRAIN
+// Smooth, large-scale planetary geology.
 // ============================================================
 
 const noiseSeed = 42;
@@ -26,7 +27,7 @@ function hash3D(x, y, z) {
 }
 
 function fade(value) {
-    return value * value * (3 - 2 * value);
+    return value * value * value * (value * (value * 6 - 15) + 10);
 }
 
 function noise3D(x, y, z) {
@@ -72,35 +73,94 @@ function fbm(x, y, z, octaves = 4) {
     return value / totalAmplitude;
 }
 
+function ridgedFbm(x, y, z, octaves = 4) {
+    let value = 0;
+    let amplitude = 0.5;
+    let frequency = 1;
+    let totalAmplitude = 0;
+
+    for (let octave = 0; octave < octaves; octave++) {
+        const n = noise3D(x * frequency, y * frequency, z * frequency);
+        const ridge = 1 - Math.abs(n * 2 - 1);
+        value += ridge * amplitude;
+        totalAmplitude += amplitude;
+        amplitude *= 0.5;
+        frequency *= 2.05;
+    }
+
+    return value / totalAmplitude;
+}
+
 function smoothstep(edge0, edge1, value) {
     const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
     return t * t * (3 - 2 * t);
 }
-
-// ============================================================
-// SHARED TERRAIN FIELD
-// Color and geometry use exactly the same field.
-// Mountains are explicitly masked by land.
-// ============================================================
 
 function terrainField(direction) {
     const x = direction.x;
     const y = direction.y;
     const z = direction.z;
 
-    const continental = fbm(x * 1.55, y * 1.55, z * 1.55, 4);
-    const regional = fbm(x * 3.1 + 17.3, y * 3.1 - 8.7, z * 3.1 + 4.1, 3);
-    const detail = fbm(x * 8.0 - 4.2, y * 8.0 + 11.8, z * 8.0 + 2.6, 3);
+    // Very broad continents.
+    const continental = fbm(
+        x * 1.15 + 4.0,
+        y * 1.15 - 2.0,
+        z * 1.15 + 7.0,
+        5
+    );
 
-    const land = smoothstep(0.475, 0.555, continental);
-    const elevation = regional * 0.72 + detail * 0.28;
+    // Regional geological variation.
+    const regional = fbm(
+        x * 2.35 - 11.0,
+        y * 2.35 + 6.0,
+        z * 2.35 + 3.0,
+        4
+    );
 
-    const mountainBase = fbm(x * 5.0 + 31.0, y * 5.0 - 13.0, z * 5.0 + 7.0, 4);
-    const mountainRidges = 1 - Math.abs(mountainBase * 2 - 1);
-    const mountainBelts = smoothstep(0.66, 0.82, elevation);
-    const mountainMask = land * mountainBelts * Math.pow(mountainRidges, 2.2);
+    // Small detail is intentionally weak: it should enrich the surface,
+    // not turn it into a collection of visible blocks.
+    const detail = fbm(
+        x * 5.5 + 9.0,
+        y * 5.5 - 14.0,
+        z * 5.5 + 2.0,
+        3
+    );
 
-    return { continental, regional, detail, elevation, land, mountainMask };
+    const land = smoothstep(0.475, 0.565, continental);
+
+    // Broad elevation field.
+    const elevation = regional * 0.78 + detail * 0.22;
+
+    // Ridged terrain creates long mountain systems rather than isolated bumps.
+    const ridgeLarge = ridgedFbm(
+        x * 2.7 + 23.0,
+        y * 2.7 - 17.0,
+        z * 2.7 + 5.0,
+        4
+    );
+
+    const ridgeRegional = ridgedFbm(
+        x * 5.0 - 7.0,
+        y * 5.0 + 13.0,
+        z * 5.0 - 19.0,
+        3
+    );
+
+    const mountainBelts = smoothstep(0.64, 0.82, elevation);
+    const mountainMask =
+        land *
+        mountainBelts *
+        smoothstep(0.38, 0.70, ridgeLarge) *
+        (0.72 + ridgeRegional * 0.28);
+
+    return {
+        continental,
+        regional,
+        detail,
+        elevation,
+        land,
+        mountainMask
+    };
 }
 
 function getTerrain(direction) {
@@ -110,21 +170,25 @@ function getTerrain(direction) {
         return { ...field, isLand: false, height: 1.0, type: "ocean" };
     }
 
-    const coast = smoothstep(0.5, 0.72, field.land);
-    const landElevation = THREE.MathUtils.clamp((field.elevation - 0.35) / 0.65, 0, 1);
-    const mountain = field.mountainMask;
+    const coast = smoothstep(0.50, 0.72, field.land);
+    const landElevation = THREE.MathUtils.clamp(
+        (field.elevation - 0.34) / 0.66,
+        0,
+        1
+    );
 
-    const height =
-        1.008 +
-        coast * 0.006 +
-        landElevation * 0.026 +
-        mountain * 0.075;
+    // Keep ordinary terrain subtle. Mountains carry most of the relief.
+    const rolling = Math.pow(landElevation, 1.55) * 0.018;
+    const mountain = Math.pow(field.mountainMask, 1.45) * 0.050;
+    const coastLift = coast * 0.004;
+
+    const height = 1.006 + coastLift + rolling + mountain;
 
     let type = "lowland";
 
-    if (mountain > 0.34) {
+    if (field.mountainMask > 0.46) {
         type = "mountain";
-    } else if (landElevation > 0.62) {
+    } else if (landElevation > 0.64) {
         type = "highland";
     } else if (coast < 0.22) {
         type = "coast";
@@ -137,7 +201,7 @@ function getTerrain(direction) {
 // PLANET GEOMETRY
 // ============================================================
 
-const planetGeometry = new THREE.SphereGeometry(1, 192, 192);
+// An icosphere gives nearly uniform triangles over the whole planet.\n// This removes the lat/long grid look of a UV sphere and keeps relief smooth.\nconst planetGeometry = new THREE.IcosahedronGeometry(1, 6);
 const positionAttribute = planetGeometry.attributes.position;
 const vertex = new THREE.Vector3();
 const direction = new THREE.Vector3();
@@ -240,20 +304,63 @@ const planet = new THREE.Mesh(planetGeometry, planetMaterial);
 scene.add(planet);
 
 // ============================================================
-// WATER SHELL
-// Smooth water surface stays spherical and cannot create
-// terrain bumps in the ocean.
+// WATER SURFACE
+// The water remains perfectly spherical, but the transparent material
+// is masked to ocean pixels so it never washes over the continents.
 // ============================================================
 
-const oceanGeometry = new THREE.SphereGeometry(1.001, 128, 128);
+const oceanMaskCanvas = document.createElement("canvas");
+oceanMaskCanvas.width = textureCanvas.width;
+oceanMaskCanvas.height = textureCanvas.height;
+
+const oceanMaskContext = oceanMaskCanvas.getContext("2d");
+const oceanMaskData = oceanMaskContext.createImageData(
+    oceanMaskCanvas.width,
+    oceanMaskCanvas.height
+);
+const oceanMaskPixels = oceanMaskData.data;
+
+for (let y = 0; y < oceanMaskCanvas.height; y++) {
+    const latitude = (0.5 - y / oceanMaskCanvas.height) * Math.PI;
+    const cosLatitude = Math.cos(latitude);
+
+    for (let x = 0; x < oceanMaskCanvas.width; x++) {
+        const longitude = (x / oceanMaskCanvas.width - 0.5) * Math.PI * 2;
+
+        textureDirection.set(
+            cosLatitude * Math.cos(longitude),
+            Math.sin(latitude),
+            cosLatitude * Math.sin(longitude)
+        ).normalize();
+
+        const terrain = getTerrain(textureDirection);
+        const index = (y * oceanMaskCanvas.width + x) * 4;
+        const alpha = terrain.isLand ? 0 : 150;
+
+        oceanMaskPixels[index] = 255;
+        oceanMaskPixels[index + 1] = 255;
+        oceanMaskPixels[index + 2] = 255;
+        oceanMaskPixels[index + 3] = alpha;
+    }
+}
+
+oceanMaskContext.putImageData(oceanMaskData, 0, 0);
+
+const oceanMaskTexture = new THREE.CanvasTexture(oceanMaskCanvas);
+oceanMaskTexture.colorSpace = THREE.SRGBColorSpace;
+oceanMaskTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+const oceanGeometry = new THREE.SphereGeometry(1.003, 128, 128);
 const oceanMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x073a63,
-    roughness: 0.28,
-    metalness: 0.05,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.18,
+    color: 0x0a4772,
+    roughness: 0.20,
+    metalness: 0.02,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.12,
     transparent: true,
-    opacity: 0.42
+    opacity: 0.62,
+    alphaMap: oceanMaskTexture,
+    depthWrite: false
 });
 
 const oceanSurface = new THREE.Mesh(oceanGeometry, oceanMaterial);
@@ -263,7 +370,7 @@ scene.add(oceanSurface);
 // ATMOSPHERIC RIM
 // ============================================================
 
-const atmosphereGeometry = new THREE.SphereGeometry(1.045, 96, 96);
+const atmosphereGeometry = new THREE.SphereGeometry(1.05, 128, 128);
 const atmosphereMaterial = new THREE.MeshBasicMaterial({
     color: 0x3b9ed1,
     transparent: true,
