@@ -356,11 +356,90 @@ oceanMaskTexture.colorSpace = THREE.SRGBColorSpace;
 oceanMaskTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
 const oceanGeometry = new THREE.SphereGeometry(1.003, 128, 128);
-const oceanMaterial = new THREE.MeshBasicMaterial({
-    color: 0x0a4772,
+const oceanMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        uTime: { value: 0 },
+        uOceanMask: { value: oceanMaskTexture }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+
+        void main() {
+            vUv = uv;
+
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = worldPosition.xyz;
+            vWorldNormal = normalize(mat3(modelMatrix) * normal);
+
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+    `,
+    fragmentShader: `
+        uniform float uTime;
+        uniform sampler2D uOceanMask;
+
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+
+        float hash(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+
+            float a = hash(i);
+            float b = hash(i + vec2(1.0, 0.0));
+            float c = hash(i + vec2(0.0, 1.0));
+            float d = hash(i + vec2(1.0, 1.0));
+
+            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+
+        void main() {
+            float mask = texture2D(uOceanMask, vUv).a;
+            if (mask < 0.02) discard;
+
+            // Two very soft, differently scaled wave fields create slow,
+            // continuous motion without looking like repeated stripes.
+            float t = uTime * 0.018;
+            float largeWave = noise(vUv * 42.0 + vec2(t, -t * 0.65));
+            float smallWave = noise(vUv * 105.0 + vec2(-t * 1.35, t * 0.8));
+            float wave = largeWave * 0.72 + smallWave * 0.28;
+
+            // Subtle moving normal-like perturbation for animated highlights.
+            vec3 n = normalize(vWorldNormal);
+            n.x += (wave - 0.5) * 0.10;
+            n.z += (noise(vUv * 70.0 + vec2(t * 0.8, -t)) - 0.5) * 0.08;
+            n = normalize(n);
+
+            vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+            vec3 lightDir = normalize(vec3(-3.5, 2.0, 4.5));
+            float diffuse = max(dot(n, lightDir), 0.0);
+
+            vec3 halfDir = normalize(lightDir + viewDir);
+            float specular = pow(max(dot(n, halfDir), 0.0), 48.0);
+
+            // Deep ocean with restrained cyan variation.
+            vec3 deep = vec3(0.008, 0.065, 0.135);
+            vec3 shallow = vec3(0.018, 0.20, 0.29);
+            vec3 oceanColor = mix(deep, shallow, wave * 0.30);
+
+            oceanColor *= 0.78 + diffuse * 0.32;
+            oceanColor += vec3(0.16, 0.30, 0.34) * specular * 0.22;
+
+            // Keep the surface translucent enough to sit naturally above the planet.
+            float alpha = mask * 0.72;
+
+            gl_FragColor = vec4(oceanColor, alpha);
+        }
+    `,
     transparent: true,
-    opacity: 0.62,
-    alphaMap: oceanMaskTexture,
     depthWrite: false
 });
 
@@ -481,6 +560,7 @@ function animate() {
     }
 
     const time = performance.now() * 0.001;
+    oceanMaterial.uniforms.uTime.value = time;
     starMaterial.opacity = 0.72 + Math.sin(time * 1.5) * 0.12;
 
     renderer.render(scene, camera);
