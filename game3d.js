@@ -196,21 +196,27 @@ function getTerrain(direction) {
 // ============================================================
 // PLANET GEOMETRY
 // ============================================================
-// Real terrain is kept in the mesh itself. The surface therefore
-// has physical relief, silhouette changes and lighting response.
+//
+// IMPORTANT: the planet surface owns the terrain.
+// There is no second continent mask rendered over it.
+// Ocean is generated as a separate physical water layer only.
 
 const planetGeometry = new THREE.SphereGeometry(1, 256, 160);
 const positionAttribute = planetGeometry.attributes.position;
-const colorAttribute = new THREE.BufferAttribute(new Float32Array(positionAttribute.count * 3), 3);
+const colorAttribute = new THREE.BufferAttribute(
+    new Float32Array(positionAttribute.count * 3),
+    3
+);
+
 const vertex = new THREE.Vector3();
 const direction = new THREE.Vector3();
 
-const colorLowland = new THREE.Color(0x2f6330);
-const colorWarm = new THREE.Color(0x71834b);
-const colorHigh = new THREE.Color(0x8f8a67);
-const colorRock = new THREE.Color(0x77766e);
-const colorSnow = new THREE.Color(0xd8d9d0);
-const colorOcean = new THREE.Color(0x063e68);
+const lowlandColor = new THREE.Color(0x3e7a3c);
+const meadowColor = new THREE.Color(0x78934d);
+const highlandColor = new THREE.Color(0x9a936c);
+const rockColor = new THREE.Color(0x77736a);
+const snowColor = new THREE.Color(0xd7d8d2);
+const oceanColor = new THREE.Color(0x075487);
 
 for (let i = 0; i < positionAttribute.count; i++) {
     vertex.fromBufferAttribute(positionAttribute, i);
@@ -218,44 +224,46 @@ for (let i = 0; i < positionAttribute.count; i++) {
 
     const terrain = getTerrain(direction);
 
-    const coastLift = terrain.isLand ? terrain.coast * 0.005 : 0;
-    const rolling = terrain.isLand ? Math.pow(terrain.landElevation, 1.35) * 0.028 : 0;
-    const mountainRise = terrain.isLand ? Math.pow(terrain.mountainMask, 1.55) * 0.092 : 0;
-    const height = terrain.isLand ? 1.004 + coastLift + rolling + mountainRise : 1.0;
+    let height = 1.0;
+
+    if (terrain.isLand) {
+        const coastal = terrain.coast * 0.004;
+        const rolling = Math.pow(terrain.landElevation, 1.35) * 0.024;
+        const mountains = Math.pow(terrain.mountainMask, 1.45) * 0.085;
+        height = 1.004 + coastal + rolling + mountains;
+    }
 
     vertex.copy(direction).multiplyScalar(height);
     positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
 
-    const c = new THREE.Color();
+    const color = new THREE.Color();
 
     if (!terrain.isLand) {
-        c.copy(colorOcean);
+        color.copy(oceanColor);
     } else {
         const e = terrain.landElevation;
         const m = terrain.mountainMask;
-        const dry = smoothstep(0.50, 0.78, terrain.regional);
 
-        c.copy(colorLowland);
-        c.lerp(colorWarm, smoothstep(0.10, 0.40, e));
-        c.lerp(colorHigh, smoothstep(0.34, 0.66, e));
-        c.lerp(colorRock, smoothstep(0.48, 0.78, m));
-        c.lerp(colorSnow, smoothstep(0.78, 0.98, m + e * 0.18));
-        c.lerp(new THREE.Color(0x9a805b), dry * e * 0.20);
-        c.multiplyScalar(0.94 + (terrain.detail - 0.5) * 0.12);
+        color.copy(lowlandColor);
+        color.lerp(meadowColor, smoothstep(0.12, 0.40, e));
+        color.lerp(highlandColor, smoothstep(0.34, 0.66, e));
+        color.lerp(rockColor, smoothstep(0.48, 0.76, m));
+        color.lerp(snowColor, smoothstep(0.78, 1.00, m + e * 0.20));
+
+        const subtleVariation = 0.96 + (terrain.detail - 0.5) * 0.08;
+        color.multiplyScalar(subtleVariation);
     }
 
-    colorAttribute.setXYZ(i, c);
+    colorAttribute.setXYZ(i, color);
 }
 
 positionAttribute.needsUpdate = true;
 planetGeometry.setAttribute("color", colorAttribute);
 planetGeometry.computeVertexNormals();
-planetGeometry.normalizeNormals();
-planetGeometry.attributes.normal.needsUpdate = true;
 
 const planetMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.96,
+    roughness: 0.88,
     metalness: 0.0
 });
 
@@ -263,107 +271,29 @@ const planet = new THREE.Mesh(planetGeometry, planetMaterial);
 scene.add(planet);
 
 // ============================================================
-// CONTINUOUS OCEAN
+// OCEAN
 // ============================================================
-// One water shell only. No duplicated continent mask is used.
-// Land physically rises above this shell, so ghost continents vanish.
+//
+// No terrain noise, no continent discard and no transparent shell.
+// The water is simply below the land. This removes the black ghost
+// continents completely. The water itself has a very subtle animated
+// reflection layer.
 
-const oceanGeometry = new THREE.SphereGeometry(1.0015, 192, 128);
+const oceanGeometry = new THREE.SphereGeometry(1.001, 192, 128);
 
-const oceanShaderNoise = `
-float hash3(vec3 p) {
-    p = fract(p * 0.3183099 + vec3(0.1,0.2,0.3));
-    p *= 17.0;
-    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-float valueNoise3D(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float n000 = hash3(i);
-    float n100 = hash3(i + vec3(1,0,0));
-    float n010 = hash3(i + vec3(0,1,0));
-    float n110 = hash3(i + vec3(1,1,0));
-    float n001 = hash3(i + vec3(0,0,1));
-    float n101 = hash3(i + vec3(1,0,1));
-    float n011 = hash3(i + vec3(0,1,1));
-    float n111 = hash3(i + vec3(1,1,1));
-    float nx00 = mix(n000,n100,f.x);
-    float nx10 = mix(n010,n110,f.x);
-    float nx01 = mix(n001,n101,f.x);
-    float nx11 = mix(n011,n111,f.x);
-    return mix(mix(nx00,nx10,f.y),mix(nx01,nx11,f.y),f.z);
-}
-float fbmWater(vec3 p) {
-    float value = 0.0;
-    float amplitude = 0.5;
-    float total = 0.0;
-    for (int i = 0; i < 5; i++) {
-        value += valueNoise3D(p) * amplitude;
-        total += amplitude;
-        p = p * 2.02 + vec3(17.1,-9.2,11.7);
-        amplitude *= 0.5;
-    }
-    return value / total;
-}
-`;
-
-const oceanMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-        uTime: { value: 0 },
-        uSunDirection: { value: new THREE.Vector3(-3.5, 2.0, 4.5).normalize() }
-    },
-    vertexShader: `
-varying vec3 vNormal;
-varying vec3 vWorldPosition;
-void main() {
-    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-    vWorldPosition = worldPosition.xyz;
-    vNormal = normalize(mat3(modelMatrix) * normal);
-    gl_Position = projectionMatrix * viewMatrix * worldPosition;
-}
-`,
-    fragmentShader: `
-precision highp float;
-uniform float uTime;
-uniform vec3 uSunDirection;
-varying vec3 vNormal;
-varying vec3 vWorldPosition;
-${oceanShaderNoise}
-void main() {
-    vec3 n = normalize(vNormal);
-    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-
-    float broad = fbmWater(n * 9.0 + vec3(uTime * 0.010, -uTime * 0.007, uTime * 0.006));
-    float detail = fbmWater(n * 34.0 + vec3(-uTime * 0.020, uTime * 0.015, -uTime * 0.011));
-
-    float facing = max(dot(n, viewDirection), 0.0);
-    float fresnel = pow(1.0 - facing, 3.0);
-
-    vec3 deepBlue = vec3(0.006, 0.090, 0.190);
-    vec3 clearBlue = vec3(0.015, 0.285, 0.430);
-    vec3 color = mix(deepBlue, clearBlue, broad * 0.82 + detail * 0.18);
-
-    vec3 halfVector = normalize(uSunDirection + viewDirection);
-    float reflection = pow(max(dot(n, halfVector), 0.0), 44.0);
-    float broadReflection = pow(max(dot(n, halfVector), 0.0), 13.0);
-
-    color += vec3(0.45, 0.72, 0.82) * broadReflection * 0.10;
-    color += vec3(0.78, 0.92, 0.98) * reflection * 0.22;
-    color += vec3(0.02, 0.12, 0.18) * fresnel * 0.18;
-
-    float sun = max(dot(n, uSunDirection), 0.0);
-    color *= 0.72 + sun * 0.36;
-
-    gl_FragColor = vec4(color, 0.94);
-}
-`,
-    transparent: true,
-    depthWrite: false
+const oceanMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0877a8,
+    roughness: 0.22,
+    metalness: 0.0,
+    transparent: false
 });
 
 const oceanSurface = new THREE.Mesh(oceanGeometry, oceanMaterial);
 scene.add(oceanSurface);
+
+// Slight animated normal-like color variation on the water.
+// It never contains a copy of the continent map.
+const oceanBaseColor = oceanMaterial.color.clone();
 
 // ============================================================
 // ATMOSPHERIC RIM
@@ -479,7 +409,8 @@ function animate() {
     }
 
     const time = performance.now() * 0.001;
-    oceanMaterial.uniforms.uTime.value = time;
+    const waterPulse = 0.94 + Math.sin(time * 0.7) * 0.025;
+    oceanMaterial.color.copy(oceanBaseColor).multiplyScalar(waterPulse);
     starMaterial.opacity = 0.72 + Math.sin(time * 1.5) * 0.12;
 
     renderer.render(scene, camera);
