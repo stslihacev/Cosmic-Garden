@@ -196,129 +196,172 @@ function getTerrain(direction) {
 // ============================================================
 // PLANET GEOMETRY
 // ============================================================
+// Real terrain is kept in the mesh itself. The surface therefore
+// has physical relief, silhouette changes and lighting response.
 
-// A high-resolution UV sphere gives smooth, continuous normals while the terrain is displaced in real geometry.
-// This avoids the visible triangular/diamond facets produced by an icosphere.
 const planetGeometry = new THREE.SphereGeometry(1, 256, 160);
 const positionAttribute = planetGeometry.attributes.position;
+const colorAttribute = new THREE.BufferAttribute(new Float32Array(positionAttribute.count * 3), 3);
 const vertex = new THREE.Vector3();
 const direction = new THREE.Vector3();
+
+const colorLowland = new THREE.Color(0x2f6330);
+const colorWarm = new THREE.Color(0x71834b);
+const colorHigh = new THREE.Color(0x8f8a67);
+const colorRock = new THREE.Color(0x77766e);
+const colorSnow = new THREE.Color(0xd8d9d0);
+const colorOcean = new THREE.Color(0x063e68);
 
 for (let i = 0; i < positionAttribute.count; i++) {
     vertex.fromBufferAttribute(positionAttribute, i);
     direction.copy(vertex).normalize();
 
     const terrain = getTerrain(direction);
-    vertex.copy(direction).multiplyScalar(terrain.height);
 
+    const coastLift = terrain.isLand ? terrain.coast * 0.005 : 0;
+    const rolling = terrain.isLand ? Math.pow(terrain.landElevation, 1.35) * 0.028 : 0;
+    const mountainRise = terrain.isLand ? Math.pow(terrain.mountainMask, 1.55) * 0.092 : 0;
+    const height = terrain.isLand ? 1.004 + coastLift + rolling + mountainRise : 1.0;
+
+    vertex.copy(direction).multiplyScalar(height);
     positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
+
+    const c = new THREE.Color();
+
+    if (!terrain.isLand) {
+        c.copy(colorOcean);
+    } else {
+        const e = terrain.landElevation;
+        const m = terrain.mountainMask;
+        const dry = smoothstep(0.50, 0.78, terrain.regional);
+
+        c.copy(colorLowland);
+        c.lerp(colorWarm, smoothstep(0.10, 0.40, e));
+        c.lerp(colorHigh, smoothstep(0.34, 0.66, e));
+        c.lerp(colorRock, smoothstep(0.48, 0.78, m));
+        c.lerp(colorSnow, smoothstep(0.78, 0.98, m + e * 0.18));
+        c.lerp(new THREE.Color(0x9a805b), dry * e * 0.20);
+        c.multiplyScalar(0.94 + (terrain.detail - 0.5) * 0.12);
+    }
+
+    colorAttribute.setXYZ(i, c);
 }
 
 positionAttribute.needsUpdate = true;
+planetGeometry.setAttribute("color", colorAttribute);
 planetGeometry.computeVertexNormals();
 planetGeometry.normalizeNormals();
 planetGeometry.attributes.normal.needsUpdate = true;
 
-// ============================================================
-// SEAM-FREE PROCEDURAL PLANET MATERIAL
-// Terrain color is evaluated directly from 3D direction vectors.
-// No equirectangular texture or longitude-based UV mask is used.
-// ============================================================
-
-const terrainShaderNoise = "float hash3(vec3 p) { p = fract(p * 0.3183099 + vec3(0.1,0.2,0.3)); p *= 17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }\nfloat valueNoise3D(vec3 p) { vec3 i=floor(p); vec3 f=fract(p); f=f*f*(3.0-2.0*f); float n000=hash3(i); float n100=hash3(i+vec3(1,0,0)); float n010=hash3(i+vec3(0,1,0)); float n110=hash3(i+vec3(1,1,0)); float n001=hash3(i+vec3(0,0,1)); float n101=hash3(i+vec3(1,0,1)); float n011=hash3(i+vec3(0,1,1)); float n111=hash3(i+vec3(1,1,1)); float nx00=mix(n000,n100,f.x); float nx10=mix(n010,n110,f.x); float nx01=mix(n001,n101,f.x); float nx11=mix(n011,n111,f.x); return mix(mix(nx00,nx10,f.y),mix(nx01,nx11,f.y),f.z); }\nfloat fbm3(vec3 p,int octaves) { float v=0.0,a=0.5,t=0.0; for(int i=0;i<6;i++){ if(i>=octaves) break; v+=valueNoise3D(p)*a; t+=a; p=p*2.02+vec3(17.1,-9.2,11.7); a*=0.5; } return v/max(t,0.0001); }\nfloat ridged3(vec3 p,int octaves) { float v=0.0,a=0.5,t=0.0; for(int i=0;i<6;i++){ if(i>=octaves) break; float n=valueNoise3D(p); v+=(1.0-abs(n*2.0-1.0))*a; t+=a; p=p*2.03+vec3(-13.0,7.0,19.0); a*=0.5; } return v/max(t,0.0001); }\nfloat sstep(float a,float b,float x){float t=clamp((x-a)/max(b-a,0.0001),0.0,1.0);return t*t*(3.0-2.0*t);}\nstruct TerrainSample { float continental; float regional; float detail; float elevation; float land; float mountain; };\nTerrainSample sampleTerrain(vec3 d){ TerrainSample t; float ca=fbm3(d*1.05+vec3(4,-2,7),5); float cb=fbm3(d*1.75+vec3(-13,8,2),4); t.continental=ca*0.78+cb*0.22; float ra=fbm3(d*2.55+vec3(-11,6,3),5); float rb=fbm3(d*4.2+vec3(18,-9,-14),4); t.regional=ra*0.72+rb*0.28; t.detail=fbm3(d*8.0+vec3(9,-14,2),3); float rl=ridged3(d*2.35+vec3(23,-17,5),5); float rr=ridged3(d*4.8+vec3(-7,13,-19),4); float rd=ridged3(d*8.5+vec3(31,-21,11),3); t.land=sstep(0.47,0.565,t.continental); t.elevation=ra*0.68+rb*0.22+t.detail*0.10; float belts=sstep(0.58,0.78,t.elevation); float structure=rl*0.58+rr*0.30+rd*0.12; t.mountain=t.land*belts*sstep(0.38,0.72,structure); return t; }";
-
-const planetMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-        uSunDirection: { value: new THREE.Vector3(-3.5, 2.0, 4.5).normalize() },
-        uCameraPosition: { value: camera.position }
-    },
-    vertexShader: `
-varying vec3 vDirection; varying vec3 vWorldPosition; varying vec3 vNormal;
-void main(){ vec4 wp=modelMatrix*vec4(position,1.0); vWorldPosition=wp.xyz; vDirection=normalize((modelMatrix*vec4(normalize(position),0.0)).xyz); vNormal=normalize(mat3(modelMatrix)*normal); gl_Position=projectionMatrix*viewMatrix*wp; }
-`,
-    fragmentShader: `
-precision highp float;
-uniform vec3 uSunDirection; uniform vec3 uCameraPosition;
-varying vec3 vDirection; varying vec3 vWorldPosition; varying vec3 vNormal;
-${terrainShaderNoise}
-void main(){
-    vec3 dir=normalize(vDirection); TerrainSample terrain=sampleTerrain(dir);
-    float landMask=smoothstep(0.47,0.56,terrain.continental);
-    float elevation=clamp((terrain.elevation-0.32)/0.68,0.0,1.0);
-    float mountain=clamp(terrain.mountain,0.0,1.0);
-    float slope=1.0-clamp(dot(normalize(vNormal),dir),0.0,1.0);
-    float ridge=clamp(mountain*1.25+slope*1.6,0.0,1.0);
-    float valley=1.0-smoothstep(0.35,0.58,terrain.elevation);
-    vec3 lowland=vec3(0.12,0.29,0.10), warm=vec3(0.34,0.43,0.18), high=vec3(0.46,0.42,0.27), rock=vec3(0.39,0.38,0.34), snow=vec3(0.78,0.79,0.74);
-    float dry=smoothstep(0.52,0.76,terrain.regional);
-    vec3 landColor=mix(lowland,warm,smoothstep(0.08,0.42,elevation));
-    landColor=mix(landColor,high,smoothstep(0.38,0.66,elevation));
-    landColor=mix(landColor,rock,smoothstep(0.46,0.78,ridge));
-    landColor=mix(landColor,snow,smoothstep(0.76,0.96,ridge+elevation*0.25));
-    landColor=mix(landColor,landColor*vec3(1.08,0.92,0.78),dry*elevation*0.28);
-    landColor*=0.94+(terrain.detail-0.5)*0.14;
-    landColor*=0.90+valley*0.10;
-    vec3 ocean=mix(vec3(0.004,0.045,0.11),vec3(0.012,0.18,0.30),terrain.continental);
-    vec3 baseColor=mix(ocean,landColor,landMask);
-    vec3 n=normalize(vNormal), viewDir=normalize(uCameraPosition-vWorldPosition);
-    float sun=max(dot(n,uSunDirection),0.0);
-    float hemisphere=0.34+0.66*max(dot(n,dir),0.0);
-    float rim=pow(1.0-max(dot(n,viewDir),0.0),3.2);
-    float relief=clamp(1.0-slope*1.8,0.25,1.0);
-    vec3 lit=baseColor*(0.20+sun*0.92)*hemisphere;
-    lit*=0.90+relief*0.10;
-    lit+=vec3(0.055,0.14,0.20)*rim*0.34;
-    gl_FragColor=vec4(lit,1.0);
-}
-`,
-    transparent: false
+const planetMaterial = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.96,
+    metalness: 0.0
 });
 
 const planet = new THREE.Mesh(planetGeometry, planetMaterial);
 scene.add(planet);
 
 // ============================================================
-// SEAM-FREE PROCEDURAL OCEAN
+// CONTINUOUS OCEAN
 // ============================================================
+// One water shell only. No duplicated continent mask is used.
+// Land physically rises above this shell, so ghost continents vanish.
 
-const oceanGeometry = new THREE.SphereGeometry(1.003, 192, 128);
+const oceanGeometry = new THREE.SphereGeometry(1.0015, 192, 128);
+
+const oceanShaderNoise = `
+float hash3(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.1,0.2,0.3));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float valueNoise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float n000 = hash3(i);
+    float n100 = hash3(i + vec3(1,0,0));
+    float n010 = hash3(i + vec3(0,1,0));
+    float n110 = hash3(i + vec3(1,1,0));
+    float n001 = hash3(i + vec3(0,0,1));
+    float n101 = hash3(i + vec3(1,0,1));
+    float n011 = hash3(i + vec3(0,1,1));
+    float n111 = hash3(i + vec3(1,1,1));
+    float nx00 = mix(n000,n100,f.x);
+    float nx10 = mix(n010,n110,f.x);
+    float nx01 = mix(n001,n101,f.x);
+    float nx11 = mix(n011,n111,f.x);
+    return mix(mix(nx00,nx10,f.y),mix(nx01,nx11,f.y),f.z);
+}
+float fbmWater(vec3 p) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    float total = 0.0;
+    for (int i = 0; i < 5; i++) {
+        value += valueNoise3D(p) * amplitude;
+        total += amplitude;
+        p = p * 2.02 + vec3(17.1,-9.2,11.7);
+        amplitude *= 0.5;
+    }
+    return value / total;
+}
+`;
+
 const oceanMaterial = new THREE.ShaderMaterial({
     uniforms: {
         uTime: { value: 0 },
-        uSunDirection: { value: new THREE.Vector3(-3.5, 2.0, 4.5).normalize() },
-        uCameraPosition: { value: camera.position }
+        uSunDirection: { value: new THREE.Vector3(-3.5, 2.0, 4.5).normalize() }
     },
     vertexShader: `
-varying vec3 vDirection; varying vec3 vWorldPosition; varying vec3 vNormal;
-void main(){ vec4 wp=modelMatrix*vec4(position,1.0); vWorldPosition=wp.xyz; vDirection=normalize((modelMatrix*vec4(normalize(position),0.0)).xyz); vNormal=normalize(mat3(modelMatrix)*normal); gl_Position=projectionMatrix*viewMatrix*wp; }
+varying vec3 vNormal;
+varying vec3 vWorldPosition;
+void main() {
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vWorldPosition = worldPosition.xyz;
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+}
 `,
     fragmentShader: `
 precision highp float;
-uniform float uTime; uniform vec3 uSunDirection; uniform vec3 uCameraPosition;
-varying vec3 vDirection; varying vec3 vWorldPosition; varying vec3 vNormal;
-${terrainShaderNoise}
-void main(){
-    vec3 dir=normalize(vDirection); TerrainSample terrain=sampleTerrain(dir);
-    float landMask=smoothstep(0.47,0.565,terrain.continental);
-    if(landMask>0.035) discard;
-    vec3 n=normalize(vNormal), viewDir=normalize(uCameraPosition-vWorldPosition);
-    float waveA=fbm3(dir*18.0+vec3(uTime*0.018,-uTime*0.012,uTime*0.009),4);
-    float waveB=fbm3(dir*42.0+vec3(-uTime*0.021,uTime*0.014,-uTime*0.011),3);
-    float wave=clamp(waveA*0.72+waveB*0.28,0.0,1.0);
-    float sun=max(dot(n,uSunDirection),0.0), facing=max(dot(n,viewDir),0.0), fresnel=pow(1.0-facing,3.0);
-    vec3 color=mix(vec3(0.004,0.045,0.11),vec3(0.008,0.18,0.32),wave*0.78);
-    color=mix(color,vec3(0.025,0.36,0.46),fresnel*0.34);
-    vec3 halfDir=normalize(uSunDirection+viewDir);
-    float reflection=pow(max(dot(n,halfDir),0.0),38.0), broad=pow(max(dot(n,halfDir),0.0),12.0);
-    color+=vec3(0.40,0.67,0.75)*broad*0.08;
-    color+=vec3(0.72,0.88,0.92)*reflection*0.16;
-    color*=0.78+sun*0.28;
-    gl_FragColor=vec4(color,0.82+fresnel*0.12);
+uniform float uTime;
+uniform vec3 uSunDirection;
+varying vec3 vNormal;
+varying vec3 vWorldPosition;
+${oceanShaderNoise}
+void main() {
+    vec3 n = normalize(vNormal);
+    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+
+    float broad = fbmWater(n * 9.0 + vec3(uTime * 0.010, -uTime * 0.007, uTime * 0.006));
+    float detail = fbmWater(n * 34.0 + vec3(-uTime * 0.020, uTime * 0.015, -uTime * 0.011));
+
+    float facing = max(dot(n, viewDirection), 0.0);
+    float fresnel = pow(1.0 - facing, 3.0);
+
+    vec3 deepBlue = vec3(0.006, 0.090, 0.190);
+    vec3 clearBlue = vec3(0.015, 0.285, 0.430);
+    vec3 color = mix(deepBlue, clearBlue, broad * 0.82 + detail * 0.18);
+
+    vec3 halfVector = normalize(uSunDirection + viewDirection);
+    float reflection = pow(max(dot(n, halfVector), 0.0), 44.0);
+    float broadReflection = pow(max(dot(n, halfVector), 0.0), 13.0);
+
+    color += vec3(0.45, 0.72, 0.82) * broadReflection * 0.10;
+    color += vec3(0.78, 0.92, 0.98) * reflection * 0.22;
+    color += vec3(0.02, 0.12, 0.18) * fresnel * 0.18;
+
+    float sun = max(dot(n, uSunDirection), 0.0);
+    color *= 0.72 + sun * 0.36;
+
+    gl_FragColor = vec4(color, 0.94);
 }
 `,
     transparent: true,
     depthWrite: false
 });
+
 const oceanSurface = new THREE.Mesh(oceanGeometry, oceanMaterial);
 scene.add(oceanSurface);
 
