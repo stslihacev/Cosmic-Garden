@@ -237,7 +237,7 @@ for (let y = 0; y < textureCanvas.height; y++) {
     const cosLatitude = Math.cos(latitude);
 
     for (let x = 0; x < textureCanvas.width; x++) {
-        const longitude = (x / textureCanvas.width - 0.5) * Math.PI * 2;
+        const longitude = ((x + 0.5) / textureCanvas.width - 0.5) * Math.PI * 2;
 
         textureDirection.set(
             cosLatitude * Math.cos(longitude),
@@ -297,6 +297,10 @@ for (let y = 0; y < textureCanvas.height; y++) {
 textureContext.putImageData(imageData, 0, 0);
 
 const planetTexture = new THREE.CanvasTexture(textureCanvas);
+planetTexture.wrapS = THREE.RepeatWrapping;
+planetTexture.wrapT = THREE.ClampToEdgeWrapping;
+planetTexture.minFilter = THREE.LinearMipmapLinearFilter;
+planetTexture.magFilter = THREE.LinearFilter;
 planetTexture.colorSpace = THREE.SRGBColorSpace;
 planetTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
