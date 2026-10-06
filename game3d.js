@@ -362,16 +362,69 @@ const oceanMaterial = new THREE.ShaderMaterial({
         uOceanMask: { value: oceanMaskTexture }
     },
     vertexShader: `
+        uniform float uTime;
+
         varying vec2 vUv;
         varying vec3 vWorldNormal;
         varying vec3 vWorldPosition;
 
+        float hash(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+
+            float a = hash(i);
+            float b = hash(i + vec2(1.0, 0.0));
+            float c = hash(i + vec2(0.0, 1.0));
+            float d = hash(i + vec2(1.0, 1.0));
+
+            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+
+        float fbm(vec2 p) {
+            float value = 0.0;
+            float amplitude = 0.5;
+
+            for (int i = 0; i < 4; i++) {
+                value += noise(p) * amplitude;
+                p = p * 2.02 + vec2(13.7, -8.3);
+                amplitude *= 0.5;
+            }
+
+            return value;
+        }
+
         void main() {
             vUv = uv;
 
-            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            float t = uTime * 0.010;
+            vec2 flow = uv * 24.0 + vec2(t * 0.70, -t * 0.42);
+
+            float waveA = fbm(flow);
+            float waveB = fbm(flow * 1.85 + vec2(4.2, -7.1));
+
+            // Very small geometric displacement: enough to catch light,
+            // not enough to create a lumpy or cartoon-like ocean silhouette.
+            float displacement = ((waveA - 0.5) * 0.0018) +
+                                 ((waveB - 0.5) * 0.0007);
+
+            vec3 displacedPosition = position + normalize(normal) * displacement;
+
+            vec4 worldPosition = modelMatrix * vec4(displacedPosition, 1.0);
             vWorldPosition = worldPosition.xyz;
-            vWorldNormal = normalize(mat3(modelMatrix) * normal);
+
+            // Build a gently animated tangent-space normal from the same
+            // fields used for displacement.
+            float e = 0.003;
+            float dx = fbm(flow + vec2(e, 0.0)) - fbm(flow - vec2(e, 0.0));
+            float dy = fbm(flow + vec2(0.0, e)) - fbm(flow - vec2(0.0, e));
+
+            vec3 objectNormal = normalize(normal + vec3(dx * 0.18, dy * 0.18, 0.0));
+            vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
 
             gl_Position = projectionMatrix * viewMatrix * worldPosition;
         }
@@ -407,7 +460,7 @@ const oceanMaterial = new THREE.ShaderMaterial({
 
             for (int i = 0; i < 4; i++) {
                 value += noise(p) * amplitude;
-                p = p * 2.03 + vec2(17.1, -9.7);
+                p = p * 2.02 + vec2(13.7, -8.3);
                 amplitude *= 0.5;
             }
 
@@ -418,61 +471,43 @@ const oceanMaterial = new THREE.ShaderMaterial({
             float mask = texture2D(uOceanMask, vUv).a;
             if (mask < 0.02) discard;
 
-            // Slow, layered ocean motion. The goal is broad changing
-            // reflections rather than visible animated noise.
-            float t = uTime * 0.012;
-
-            vec2 flowA = vUv * 18.0 + vec2(t * 0.72, -t * 0.34);
-            vec2 flowB = vUv * 37.0 + vec2(-t * 0.41, t * 0.57);
-
-            float broad = fbm(flowA);
-            float detail = fbm(flowB);
-
-            // Derivatives of the procedural fields behave like animated
-            // micro-normal information without changing the sphere silhouette.
-            float e = 0.0025;
-            float broadX = fbm(flowA + vec2(e, 0.0)) - fbm(flowA - vec2(e, 0.0));
-            float broadY = fbm(flowA + vec2(0.0, e)) - fbm(flowA - vec2(0.0, e));
-            float detailX = noise(flowB + vec2(e, 0.0)) - noise(flowB - vec2(e, 0.0));
-            float detailY = noise(flowB + vec2(0.0, e)) - noise(flowB - vec2(0.0, e));
+            float t = uTime * 0.010;
+            float wave = fbm(vUv * 24.0 + vec2(t * 0.70, -t * 0.42));
+            float fine = noise(vUv * 72.0 + vec2(-t * 0.55, t * 0.40));
 
             vec3 n = normalize(vWorldNormal);
-            n += vec3(
-                (broadX * 2.2 + detailX * 0.55) * 0.12,
-                (broadY * 2.2 + detailY * 0.55) * 0.12,
-                0.0
-            );
-            n = normalize(n);
-
             vec3 viewDir = normalize(cameraPosition - vWorldPosition);
             vec3 sunDir = normalize(vec3(-3.5, 2.0, 4.5));
 
             float facing = max(dot(n, viewDir), 0.0);
             float diffuse = max(dot(n, sunDir), 0.0);
+            float fresnel = pow(1.0 - facing, 2.8);
 
-            // Fresnel makes water react strongly to viewing angle.
-            float fresnel = pow(1.0 - facing, 3.0);
+            // Brighter, more natural blue ocean.
+            vec3 deepWater = vec3(0.008, 0.075, 0.15);
+            vec3 blueWater = vec3(0.015, 0.28, 0.43);
+            vec3 brightWater = vec3(0.035, 0.42, 0.55);
 
-            vec3 reflectedSky = vec3(0.035, 0.17, 0.25);
-            vec3 deepWater = vec3(0.004, 0.035, 0.075);
-            vec3 shallowWater = vec3(0.008, 0.13, 0.20);
+            float waterVariation = clamp(wave * 0.72 + fine * 0.28, 0.0, 1.0);
+            vec3 waterColor = mix(deepWater, blueWater, waterVariation * 0.72);
 
-            float depthVariation = smoothstep(0.20, 0.82, broad * 0.72 + detail * 0.28);
-            vec3 waterColor = mix(deepWater, shallowWater, depthVariation * 0.55);
-            waterColor = mix(waterColor, reflectedSky, fresnel * 0.62);
+            // Soft atmospheric reflection near the grazing angle.
+            vec3 skyReflection = vec3(0.10, 0.34, 0.45);
+            waterColor = mix(waterColor, skyReflection, fresnel * 0.42);
 
-            // A broad moving reflection plus a tighter glint.
+            // Broad sunlight reflection, intentionally restrained.
             vec3 halfDir = normalize(sunDir + viewDir);
-            float broadReflection = pow(max(dot(n, halfDir), 0.0), 18.0);
-            float tightReflection = pow(max(dot(n, halfDir), 0.0), 80.0);
+            float broadReflection = pow(max(dot(n, halfDir), 0.0), 28.0);
+            float glint = pow(max(dot(n, halfDir), 0.0), 100.0);
 
-            float movingReflection = broadReflection * (0.45 + broad * 0.55);
-            waterColor += vec3(0.20, 0.34, 0.40) * movingReflection * 0.32;
-            waterColor += vec3(0.34, 0.48, 0.52) * tightReflection * 0.13;
+            waterColor += vec3(0.48, 0.70, 0.74) * broadReflection * 0.22;
+            waterColor += vec3(0.65, 0.82, 0.84) * glint * 0.055;
 
-            waterColor *= 0.72 + diffuse * 0.28;
+            waterColor *= 0.82 + diffuse * 0.24;
 
-            float alpha = mask * (0.68 + fresnel * 0.16);
+            // Slightly softer opacity than before so the planet beneath
+            // contributes naturally to the water depth.
+            float alpha = mask * (0.72 + fresnel * 0.10);
 
             gl_FragColor = vec4(waterColor, alpha);
         }
