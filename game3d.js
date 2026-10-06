@@ -201,9 +201,9 @@ function getTerrain(direction) {
 // PLANET GEOMETRY
 // ============================================================
 
-// An icosphere gives nearly uniform triangles over the whole planet.
-// This removes the lat/long grid look of a UV sphere and keeps relief smooth.
-const planetGeometry = new THREE.IcosahedronGeometry(1, 7);
+// A high-resolution UV sphere gives smooth, continuous normals while the terrain is displaced in real geometry.
+// This avoids the visible triangular/diamond facets produced by an icosphere.
+const planetGeometry = new THREE.SphereGeometry(1, 192, 128);
 const positionAttribute = planetGeometry.attributes.position;
 const vertex = new THREE.Vector3();
 const direction = new THREE.Vector3();
@@ -220,6 +220,7 @@ for (let i = 0; i < positionAttribute.count; i++) {
 
 positionAttribute.needsUpdate = true;
 planetGeometry.computeVertexNormals();
+planetGeometry.normalizeNormals();
 planetGeometry.attributes.normal.needsUpdate = true;
 
 // ============================================================
@@ -299,8 +300,9 @@ planetTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
 const planetMaterial = new THREE.MeshStandardMaterial({
     map: planetTexture,
-    roughness: 0.88,
-    metalness: 0.0
+    roughness: 1.0,
+    metalness: 0.0,
+    specularIntensity: 0.0
 });
 
 const planet = new THREE.Mesh(planetGeometry, planetMaterial);
@@ -354,10 +356,8 @@ oceanMaskTexture.colorSpace = THREE.SRGBColorSpace;
 oceanMaskTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
 const oceanGeometry = new THREE.SphereGeometry(1.003, 128, 128);
-const oceanMaterial = new THREE.MeshStandardMaterial({
+const oceanMaterial = new THREE.MeshBasicMaterial({
     color: 0x0a4772,
-    roughness: 0.34,
-    metalness: 0.0,
     transparent: true,
     opacity: 0.62,
     alphaMap: oceanMaskTexture,
@@ -394,9 +394,7 @@ const sunLight = new THREE.DirectionalLight(0xffffff, 1.95);
 sunLight.position.set(-3.5, 2.0, 4.5);
 scene.add(sunLight);
 
-const fillLight = new THREE.DirectionalLight(0x6b9dcc, 0.12);
-fillLight.position.set(4, -1, -3);
-scene.add(fillLight);
+// A single soft key light keeps the planet readable without creating paired specular hotspots.
 
 // ============================================================
 // STARS
