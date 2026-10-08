@@ -155,9 +155,9 @@ function terrainAt(direction) {
     const landElevation = THREE.MathUtils.clamp((elevation - 0.30) / 0.70, 0, 1);
 
     // Deliberately stronger than the old planet: the relief must read as geometry.
-    const rolling = Math.pow(landElevation, 1.35) * 0.035;
-    const mountains = Math.pow(mountainMask, 1.35) * 0.115;
-    const coastLift = coast * 0.006;
+    const rolling = Math.pow(landElevation, 1.35) * 0.055;
+    const mountains = Math.pow(mountainMask, 1.35) * 0.24;
+    const coastLift = coast * 0.012;
 
     return {
         isLand: true,
@@ -513,10 +513,10 @@ scene.add(atmosphere);
 // Strong directional light makes the actual relief readable.
 // ============================================================
 
-const ambientLight = new THREE.AmbientLight(0x9db9cf, 0.18);
+const ambientLight = new THREE.AmbientLight(0x9db9cf, 0.08);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 3.2);
+const sunLight = new THREE.DirectionalLight(0xffffff, 4.2);
 sunLight.position.set(-3.5, 2.4, 4.5);
 sunLight.target.position.set(0, 0, 0);
 scene.add(sunLight);
@@ -548,7 +548,7 @@ starGeometry.setAttribute(
 
 const starMaterial = new THREE.PointsMaterial({
     color: 0xffffff,
-    size: 0.075,
+    size: 0.045,
     sizeAttenuation: true,
     transparent: true,
     opacity: 0.72
