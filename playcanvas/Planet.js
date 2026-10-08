@@ -25,7 +25,7 @@ function buildIcosphere(subdivisions=5){
  return {vertices:base,faces};
 }
 export function createPlanet(app){
- const {vertices,faces}=buildIcosphere(5);
+ const {vertices,faces}=buildIcosphere(6);
  const positions=[],normals=[],colors=[],indices=[];
  for(const d of vertices){
   const t=terrainAt({x:d[0],y:d[1],z:d[2]});
@@ -40,7 +40,9 @@ export function createPlanet(app){
  mesh.setIndices(indices);
  mesh.update(pc.PRIMITIVE_TRIANGLES);
  const material=new pc.StandardMaterial();
- material.diffuse.set(1,1,1);
+ material.diffuse.set(0.75,0.75,0.75);
+ material.emissive.set(0.22,0.22,0.22);
+ material.emissiveVertexColor=true;
  material.diffuseVertexColor=true;
  material.specular.set(.08,.08,.08);
  material.gloss=.12;
