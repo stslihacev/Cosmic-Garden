@@ -1,22 +1,25 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+import { mergeVertices } from "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/BufferGeometryUtils.js";
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000308);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.05, 4.35);
+camera.position.set(0, 0.05, 4.25);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: "high-performance"
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.08;
 document.body.appendChild(renderer.domElement);
 
 // ============================================================
-// PROCEDURAL TERRAIN
-// Smooth, large-scale planetary geology.
+// 3D PROCEDURAL TERRAIN
 // ============================================================
 
 const noiseSeed = 42;
@@ -61,34 +64,34 @@ function fbm(x, y, z, octaves = 4) {
     let value = 0;
     let amplitude = 1;
     let frequency = 1;
-    let totalAmplitude = 0;
+    let total = 0;
 
-    for (let octave = 0; octave < octaves; octave++) {
+    for (let i = 0; i < octaves; i++) {
         value += noise3D(x * frequency, y * frequency, z * frequency) * amplitude;
-        totalAmplitude += amplitude;
+        total += amplitude;
         amplitude *= 0.5;
         frequency *= 2;
     }
 
-    return value / totalAmplitude;
+    return value / total;
 }
 
 function ridgedFbm(x, y, z, octaves = 4) {
     let value = 0;
     let amplitude = 0.5;
     let frequency = 1;
-    let totalAmplitude = 0;
+    let total = 0;
 
-    for (let octave = 0; octave < octaves; octave++) {
+    for (let i = 0; i < octaves; i++) {
         const n = noise3D(x * frequency, y * frequency, z * frequency);
         const ridge = 1 - Math.abs(n * 2 - 1);
         value += ridge * amplitude;
-        totalAmplitude += amplitude;
+        total += amplitude;
         amplitude *= 0.5;
         frequency *= 2.05;
     }
 
-    return value / totalAmplitude;
+    return value / total;
 }
 
 function smoothstep(edge0, edge1, value) {
@@ -96,38 +99,37 @@ function smoothstep(edge0, edge1, value) {
     return t * t * (3 - 2 * t);
 }
 
-function terrainField(direction) {
+function terrainAt(direction) {
     const x = direction.x;
     const y = direction.y;
     const z = direction.z;
 
-    // Low-frequency fields define broad continental masses and keep
-    // coastlines large, organic and free of obvious repetition.
-    const continentalA = fbm(x * 1.05 + 4.0, y * 1.05 - 2.0, z * 1.05 + 7.0, 5);
-    const continentalB = fbm(x * 1.75 - 13.0, y * 1.75 + 8.0, z * 1.75 + 2.0, 4);
-    const continental = continentalA * 0.78 + continentalB * 0.22;
+    // Large continental shapes.
+    const continentA = fbm(x * 1.15 + 4.0, y * 1.15 - 2.0, z * 1.15 + 7.0, 5);
+    const continentB = fbm(x * 2.0 - 13.0, y * 2.0 + 8.0, z * 2.0 + 2.0, 4);
+    const continental = continentA * 0.78 + continentB * 0.22;
 
-    // Regional geology gives each continent broad lowlands, uplands and plateaus.
-    const regionalA = fbm(x * 2.55 - 11.0, y * 2.55 + 6.0, z * 2.55 + 3.0, 5);
-    const regionalB = fbm(x * 4.2 + 18.0, y * 4.2 - 9.0, z * 4.2 - 14.0, 4);
+    // Regional geology.
+    const regionalA = fbm(x * 2.8 - 11.0, y * 2.8 + 6.0, z * 2.8 + 3.0, 5);
+    const regionalB = fbm(x * 4.8 + 18.0, y * 4.8 - 9.0, z * 4.8 - 14.0, 4);
     const regional = regionalA * 0.72 + regionalB * 0.28;
 
-    // Fine detail stays restrained so plains read as terrain, not noise.
-    const detail = fbm(x * 8.0 + 9.0, y * 8.0 - 14.0, z * 8.0 + 2.0, 3);
+    // Small detail only affects terrain gently.
+    const detail = fbm(x * 10.0 + 9.0, y * 10.0 - 14.0, z * 10.0 + 2.0, 3);
 
-    // Several ridge scales combine into connected mountain systems.
+    // Connected mountain systems.
     const ridgeLarge = ridgedFbm(x * 2.35 + 23.0, y * 2.35 - 17.0, z * 2.35 + 5.0, 5);
-    const ridgeRegional = ridgedFbm(x * 4.8 - 7.0, y * 4.8 + 13.0, z * 4.8 - 19.0, 4);
-    const ridgeDetail = ridgedFbm(x * 8.5 + 31.0, y * 8.5 - 21.0, z * 8.5 + 11.0, 3);
+    const ridgeRegional = ridgedFbm(x * 5.0 - 7.0, y * 5.0 + 13.0, z * 5.0 - 19.0, 4);
+    const ridgeDetail = ridgedFbm(x * 9.0 + 31.0, y * 9.0 - 21.0, z * 9.0 + 11.0, 3);
 
-    const land = smoothstep(0.47, 0.565, continental);
+    const land = smoothstep(0.475, 0.57, continental);
 
     const elevation =
-        regionalA * 0.68 +
+        regionalA * 0.70 +
         regionalB * 0.22 +
-        detail * 0.10;
+        detail * 0.08;
 
-    const mountainBelts = smoothstep(0.58, 0.78, elevation);
+    const mountainBelts = smoothstep(0.56, 0.74, elevation);
     const mountainStructure =
         ridgeLarge * 0.58 +
         ridgeRegional * 0.30 +
@@ -136,176 +138,182 @@ function terrainField(direction) {
     const mountainMask =
         land *
         mountainBelts *
-        smoothstep(0.38, 0.72, mountainStructure);
+        smoothstep(0.38, 0.70, mountainStructure);
 
-    return {
-        continental,
-        regional,
-        detail,
-        elevation,
-        land,
-        mountainMask,
-        mountainStructure
-    };
-}
-
-function getTerrain(direction) {
-    const field = terrainField(direction);
-
-    if (field.land < 0.5) {
-        return { ...field, isLand: false, height: 1.0, type: "ocean" };
+    if (land < 0.5) {
+        return {
+            isLand: false,
+            land,
+            elevation,
+            detail,
+            mountainMask: 0,
+            height: 1.0
+        };
     }
 
-    const coast = smoothstep(0.50, 0.70, field.land);
-    const landElevation = THREE.MathUtils.clamp(
-        (field.elevation - 0.32) / 0.68,
-        0,
-        1
-    );
+    const coast = smoothstep(0.50, 0.72, land);
+    const landElevation = THREE.MathUtils.clamp((elevation - 0.30) / 0.70, 0, 1);
 
-    // Broad rolling terrain.
-    const rolling = Math.pow(landElevation, 1.45) * 0.020;
-
-    // Mountain ranges rise progressively from surrounding terrain.
-    const mountainRise = Math.pow(field.mountainMask, 1.65) * 0.070;
-
-    // Very small coastal lift keeps the shoreline from looking laser-flat.
-    const coastLift = coast * 0.004;
-
-    const height = 1.004 + coastLift + rolling + mountainRise;
-
-    let type = "lowland";
-
-    if (field.mountainMask > 0.50) {
-        type = "mountain";
-    } else if (landElevation > 0.67) {
-        type = "highland";
-    } else if (coast < 0.24) {
-        type = "coast";
-    }
+    // Deliberately stronger than the old planet: the relief must read as geometry.
+    const rolling = Math.pow(landElevation, 1.35) * 0.035;
+    const mountains = Math.pow(mountainMask, 1.35) * 0.115;
+    const coastLift = coast * 0.006;
 
     return {
-        ...field,
         isLand: true,
-        height,
-        type,
+        land,
+        elevation,
+        detail,
+        mountainMask,
+        landElevation,
         coast,
-        landElevation
+        height: 1.006 + coastLift + rolling + mountains
     };
 }
+
 // ============================================================
-// PLANET GEOMETRY
+// CUBE-SPHERE PLANET
+// A cube projected onto a sphere avoids the UV sphere's pole and
+// longitude seam problems. Every terrain sample uses a true 3D
+// direction, so the planet has no painted 2D continent map.
 // ============================================================
-//
-// IMPORTANT: the planet surface owns the terrain.
-// There is no second continent mask rendered over it.
-// Ocean is generated as a separate physical water layer only.
 
-const planetGeometry = new THREE.SphereGeometry(1, 256, 160);
-const positionAttribute = planetGeometry.attributes.position;
-const colorAttribute = new THREE.BufferAttribute(
-    new Float32Array(positionAttribute.count * 3),
-    3
-);
+const FACE_RESOLUTION = 86;
+const positions = [];
+const colors = [];
+const indices = [];
 
-const vertex = new THREE.Vector3();
-const direction = new THREE.Vector3();
+const lowlandColor = new THREE.Color(0x3f7f42);
+const meadowColor = new THREE.Color(0x7d9b51);
+const dryColor = new THREE.Color(0xa58f63);
+const rockColor = new THREE.Color(0x77756f);
+const snowColor = new THREE.Color(0xe2e3df);
 
-const lowlandColor = new THREE.Color(0x3e7a3c);
-const meadowColor = new THREE.Color(0x78934d);
-const highlandColor = new THREE.Color(0x9a936c);
-const rockColor = new THREE.Color(0x77736a);
-const snowColor = new THREE.Color(0xd7d8d2);
-const oceanColor = new THREE.Color(0x075487);
+function addFace(face) {
+    const base = positions.length / 3;
 
-for (let i = 0; i < positionAttribute.count; i++) {
-    vertex.fromBufferAttribute(positionAttribute, i);
-    direction.copy(vertex).normalize();
+    for (let row = 0; row <= FACE_RESOLUTION; row++) {
+        const v = row / FACE_RESOLUTION;
 
-    const terrain = getTerrain(direction);
+        for (let col = 0; col <= FACE_RESOLUTION; col++) {
+            const u = col / FACE_RESOLUTION;
+            const a = u * 2 - 1;
+            const b = v * 2 - 1;
 
-    let height = 1.0;
+            let cubeX = 0;
+            let cubeY = 0;
+            let cubeZ = 0;
 
-    if (terrain.isLand) {
-        const coastal = terrain.coast * 0.004;
-        const rolling = Math.pow(terrain.landElevation, 1.35) * 0.024;
-        const mountains = Math.pow(terrain.mountainMask, 1.45) * 0.085;
-        height = 1.004 + coastal + rolling + mountains;
+            if (face === "px") { cubeX = 1; cubeY = b; cubeZ = -a; }
+            if (face === "nx") { cubeX = -1; cubeY = b; cubeZ = a; }
+            if (face === "py") { cubeX = a; cubeY = 1; cubeZ = b; }
+            if (face === "ny") { cubeX = a; cubeY = -1; cubeZ = -b; }
+            if (face === "pz") { cubeX = a; cubeY = b; cubeZ = 1; }
+            if (face === "nz") { cubeX = -a; cubeY = b; cubeZ = -1; }
+
+            const length = Math.sqrt(cubeX * cubeX + cubeY * cubeY + cubeZ * cubeZ);
+            const dx = cubeX / length;
+            const dy = cubeY / length;
+            const dz = cubeZ / length;
+            const direction = new THREE.Vector3(dx, dy, dz);
+
+            const terrain = terrainAt(direction);
+            const radius = terrain.height;
+
+            positions.push(dx * radius, dy * radius, dz * radius);
+
+            const color = new THREE.Color();
+
+            if (!terrain.isLand) {
+                // Ocean on the planet body. The separate water shell sits above this.
+                color.set(0x064d78);
+            } else {
+                const e = terrain.landElevation;
+                const m = terrain.mountainMask;
+
+                color.copy(lowlandColor);
+                color.lerp(meadowColor, smoothstep(0.08, 0.36, e));
+                color.lerp(dryColor, smoothstep(0.34, 0.62, e));
+                color.lerp(rockColor, smoothstep(0.48, 0.72, m));
+                color.lerp(snowColor, smoothstep(0.76, 1.0, m + e * 0.18));
+
+                const variation = 0.94 + (terrain.detail - 0.5) * 0.10;
+                color.multiplyScalar(variation);
+            }
+
+            colors.push(color.r, color.g, color.b);
+        }
     }
 
-    vertex.copy(direction).multiplyScalar(height);
-    positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
+    const rowSize = FACE_RESOLUTION + 1;
 
-    const color = new THREE.Color();
+    for (let row = 0; row < FACE_RESOLUTION; row++) {
+        for (let col = 0; col < FACE_RESOLUTION; col++) {
+            const a = base + row * rowSize + col;
+            const b = a + 1;
+            const c = a + rowSize;
+            const d = c + 1;
 
-    if (!terrain.isLand) {
-        color.copy(oceanColor);
-    } else {
-        const e = terrain.landElevation;
-        const m = terrain.mountainMask;
-
-        color.copy(lowlandColor);
-        color.lerp(meadowColor, smoothstep(0.12, 0.40, e));
-        color.lerp(highlandColor, smoothstep(0.34, 0.66, e));
-        color.lerp(rockColor, smoothstep(0.48, 0.76, m));
-        color.lerp(snowColor, smoothstep(0.78, 1.00, m + e * 0.20));
-
-        const subtleVariation = 0.96 + (terrain.detail - 0.5) * 0.08;
-        color.multiplyScalar(subtleVariation);
+            indices.push(a, c, b);
+            indices.push(b, c, d);
+        }
     }
-
-    colorAttribute.setXYZ(i, color);
 }
 
-positionAttribute.needsUpdate = true;
-planetGeometry.setAttribute("color", colorAttribute);
-planetGeometry.computeVertexNormals();
+["px", "nx", "py", "ny", "pz", "nz"].forEach(addFace);
+
+const planetGeometry = new THREE.BufferGeometry();
+planetGeometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3)
+);
+planetGeometry.setAttribute(
+    "color",
+    new THREE.Float32BufferAttribute(colors, 3)
+);
+planetGeometry.setIndex(indices);
+
+// Merge identical edge vertices so normals flow continuously across cube faces.
+const smoothGeometry = mergeVertices(planetGeometry, 1e-5);
+smoothGeometry.computeVertexNormals();
 
 const planetMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.88,
+    roughness: 0.86,
     metalness: 0.0
 });
 
-const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+const planet = new THREE.Mesh(smoothGeometry, planetMaterial);
 scene.add(planet);
 
 // ============================================================
 // OCEAN
+// The water is a physical sphere slightly above sea level.
+// It has no continent mask, so it can never create ghost land.
 // ============================================================
-//
-// No terrain noise, no continent discard and no transparent shell.
-// The water is simply below the land. This removes the black ghost
-// continents completely. The water itself has a very subtle animated
-// reflection layer.
 
-const oceanGeometry = new THREE.SphereGeometry(1.001, 192, 128);
-
+const oceanGeometry = new THREE.SphereGeometry(1.003, 192, 128);
 const oceanMaterial = new THREE.MeshStandardMaterial({
-    color: 0x0877a8,
-    roughness: 0.22,
-    metalness: 0.0,
-    transparent: false
+    color: 0x087fb5,
+    roughness: 0.18,
+    metalness: 0.02
 });
 
 const oceanSurface = new THREE.Mesh(oceanGeometry, oceanMaterial);
 scene.add(oceanSurface);
 
-// Slight animated normal-like color variation on the water.
-// It never contains a copy of the continent map.
-const oceanBaseColor = oceanMaterial.color.clone();
-
 // ============================================================
-// ATMOSPHERIC RIM
+// ATMOSPHERE
 // ============================================================
 
-const atmosphereGeometry = new THREE.SphereGeometry(1.05, 128, 128);
+const atmosphereGeometry = new THREE.SphereGeometry(1.055, 128, 128);
 const atmosphereMaterial = new THREE.MeshBasicMaterial({
-    color: 0x3b9ed1,
+    color: 0x4aa9e8,
     transparent: true,
-    opacity: 0.075,
+    opacity: 0.085,
     side: THREE.BackSide,
-    depthWrite: false
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
 });
 
 const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
@@ -313,16 +321,15 @@ scene.add(atmosphere);
 
 // ============================================================
 // LIGHTING
+// Strong directional light makes the actual relief readable.
 // ============================================================
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.28);
+const ambientLight = new THREE.AmbientLight(0x9db9cf, 0.18);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.95);
-sunLight.position.set(-3.5, 2.0, 4.5);
+const sunLight = new THREE.DirectionalLight(0xffffff, 2.45);
+sunLight.position.set(-3.5, 2.4, 4.5);
 scene.add(sunLight);
-
-// A single soft key light keeps the planet readable without creating paired specular hotspots.
 
 // ============================================================
 // STARS
@@ -343,7 +350,10 @@ for (let i = 0; i < starCount; i++) {
 }
 
 const starGeometry = new THREE.BufferGeometry();
-starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+starGeometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(starPositions, 3)
+);
 
 const starMaterial = new THREE.PointsMaterial({
     color: 0xffffff,
@@ -409,8 +419,9 @@ function animate() {
     }
 
     const time = performance.now() * 0.001;
-    const waterPulse = 0.94 + Math.sin(time * 0.7) * 0.025;
-    oceanMaterial.color.copy(oceanBaseColor).multiplyScalar(waterPulse);
+    const pulse = 0.96 + Math.sin(time * 0.65) * 0.018;
+    oceanMaterial.color.setRGB(0.033 * pulse, 0.50 * pulse, 0.71 * pulse);
+
     starMaterial.opacity = 0.72 + Math.sin(time * 1.5) * 0.12;
 
     renderer.render(scene, camera);
@@ -418,13 +429,8 @@ function animate() {
 
 animate();
 
-// ============================================================
-// RESIZE
-// ============================================================
-
 window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
