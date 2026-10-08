@@ -33,6 +33,7 @@ export function createPlanet(app,resolution=64){
    const a=base+row*s+col,b=a+1,c=a+s,d=c+1;indices.push(a,c,b,b,c,d);
   }
  }
+ fixWinding(indices,positions);
  const mesh=new pc.Mesh(app.graphicsDevice);
  mesh.setPositions(new Float32Array(positions));
  mesh.setNormals(new Float32Array(normals));
