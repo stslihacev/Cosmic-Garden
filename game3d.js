@@ -540,9 +540,6 @@ function addDetailVertex(direction) {
         const localVariation = 0.90 + (terrain.detail - 0.5) * 0.20;
         color.multiplyScalar(localVariation);
 
-        if (isTestContinent) {
-            color.lerp(testContinentColor, 0.88);
-        }
     }
 
     detailColors.push(color.r, color.g, color.b);
