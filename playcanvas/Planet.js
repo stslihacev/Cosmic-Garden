@@ -16,6 +16,27 @@ function normal(d){
  nx/=l;ny/=l;nz/=l;if(nx*d[0]+ny*d[1]+nz*d[2]<0){nx=-nx;ny=-ny;nz=-nz;}return [nx,ny,nz];
 }
 
+function faceNormal(a,b,c){
+ const ax=b[0]-a[0],ay=b[1]-a[1],az=b[2]-a[2];
+ const bx=c[0]-a[0],by=c[1]-a[1],bz=c[2]-a[2];
+ let nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
+ const l=Math.hypot(nx,ny,nz)||1;
+ return [nx/l,ny/l,nz/l];
+}
+function fixWinding(indices,positions){
+ for(let i=0;i<indices.length;i+=3){
+  const ia=indices[i]*3,ib=indices[i+1]*3,ic=indices[i+2]*3;
+  const a=[positions[ia],positions[ia+1],positions[ia+2]];
+  const b=[positions[ib],positions[ib+1],positions[ib+2]];
+  const d=[positions[ic],positions[ic+1],positions[ic+2]];
+  const n=faceNormal(a,b,d);
+  const cx=(a[0]+b[0]+d[0])/3,cy=(a[1]+b[1]+d[1])/3,cz=(a[2]+b[2]+d[2])/3;
+  if(n[0]*cx+n[1]*cy+n[2]*cz<0){
+   const t=indices[i+1]; indices[i+1]=indices[i+2]; indices[i+2]=t;
+  }
+ }
+}
+
 export function createPlanet(app,resolution=64){
  const positions=[],normals=[],colors=[],indices=[];
  for(const face of ["px","nx","py","ny","pz","nz"]){
