@@ -1,8 +1,8 @@
 import * as pc from "playcanvas";
-import { createPlanet } from "./world/Planet.js";
-import { createOcean } from "./world/Ocean.js";
-import { createStars } from "./environment/Stars.js";
-import { attachCameraControls } from "./camera/CameraController.js";
+import { createPlanet } from "./playcanvas/Planet.js";
+import { createOcean } from "./playcanvas/Ocean.js";
+
+import { attachCameraControls } from "./playcanvas/CameraController.js";
 
 const canvas=document.getElementById("application");
 const loading=document.getElementById("loading");
@@ -30,7 +30,7 @@ app.root.addChild(fill);
 
 const planet=createPlanet(app,64);
 const ocean=createOcean(app);
-const stars=createStars(app,1600);
+
 
 const planetEntity=new pc.Entity("Planet");
 planetEntity.addComponent("render",{meshInstances:[planet.meshInstance]});
@@ -39,7 +39,7 @@ app.root.addChild(planetEntity);
 const oceanEntity=new pc.Entity("Ocean");
 oceanEntity.addComponent("render",{meshInstances:[ocean.meshInstance]});
 app.root.addChild(oceanEntity);
-app.root.addChild(stars.entity);
+
 
 const controls=attachCameraControls(canvas,camera,planetEntity,oceanEntity);
 loading.textContent="PlayCanvas • procedural planet";
