@@ -340,6 +340,137 @@ const planet = new THREE.Mesh(weldedGeometry, planetMaterial);
 scene.add(planet);
 
 // ============================================================
+// CLOSE SURFACE LOD
+// A high-resolution local cap is placed over the side facing the
+// camera. It carries much finer terrain geometry than the distant
+// planet mesh, so approaching the planet reveals real relief rather
+// than simply enlarging the coarse global grid.
+// ============================================================
+
+const DETAIL_RESOLUTION = 192;
+const DETAIL_ANGLE = 0.72;
+const detailPositions = [];
+const detailColors = [];
+const detailIndices = [];
+
+function addDetailVertex(direction) {
+    const terrain = terrainAt(direction);
+    let radius = terrain.height;
+
+    if (terrain.isLand) {
+        const fineA = fbm(
+            direction.x * 22.0 + 51.0,
+            direction.y * 22.0 - 17.0,
+            direction.z * 22.0 + 29.0,
+            4
+        );
+        const fineB = ridgedFbm(
+            direction.x * 38.0 - 12.0,
+            direction.y * 38.0 + 27.0,
+            direction.z * 38.0 + 8.0,
+            3
+        );
+        const micro = fbm(
+            direction.x * 85.0 + 7.0,
+            direction.y * 85.0 - 31.0,
+            direction.z * 85.0 + 19.0,
+            3
+        );
+
+        // Fine relief is deliberately smooth and layered instead of blocky.
+        radius += Math.pow(Math.max(0, fineA - 0.42), 1.25) * 0.018;
+        radius += Math.pow(Math.max(0, fineB - 0.48), 1.35) * 0.012;
+        radius += (micro - 0.5) * 0.004;
+    }
+
+    detailPositions.push(
+        direction.x * radius,
+        direction.y * radius,
+        direction.z * radius
+    );
+
+    const color = new THREE.Color();
+
+    if (!terrain.isLand) {
+        color.set(0x064d78);
+    } else {
+        const e = terrain.landElevation;
+        const m = terrain.mountainMask;
+
+        color.copy(lowlandColor);
+        color.lerp(meadowColor, smoothstep(0.08, 0.36, e));
+        color.lerp(dryColor, smoothstep(0.34, 0.62, e));
+        color.lerp(rockColor, smoothstep(0.48, 0.72, m));
+        color.lerp(snowColor, smoothstep(0.76, 1.0, m + e * 0.18));
+
+        const localVariation = 0.92 + (terrain.detail - 0.5) * 0.14;
+        color.multiplyScalar(localVariation);
+    }
+
+    detailColors.push(color.r, color.g, color.b);
+}
+
+const detailSide = Math.sin(DETAIL_ANGLE);
+
+for (let row = 0; row <= DETAIL_RESOLUTION; row++) {
+    const t = row / DETAIL_RESOLUTION;
+    const y = (t * 2 - 1) * detailSide;
+
+    for (let col = 0; col <= DETAIL_RESOLUTION; col++) {
+        const u = col / DETAIL_RESOLUTION;
+        const x = (u * 2 - 1) * detailSide;
+        const radial = x * x + y * y;
+
+        // Outside the circular cap: keep a harmless point on the edge.
+        // Triangles touching it are skipped below, leaving a true round LOD patch.
+        if (radial >= detailSide * detailSide) {
+            detailPositions.push(0, 0, 0);
+            detailColors.push(0, 0, 0);
+            continue;
+        }
+
+        const z = Math.sqrt(1 - radial);
+        const direction = new THREE.Vector3(x, y, z).normalize();
+        addDetailVertex(direction);
+    }
+}
+
+const detailRowSize = DETAIL_RESOLUTION + 1;
+
+for (let row = 0; row < DETAIL_RESOLUTION; row++) {
+    for (let col = 0; col < DETAIL_RESOLUTION; col++) {
+        const a = row * detailRowSize + col;
+        const b = a + 1;
+        const c = a + detailRowSize;
+        const d = c + 1;
+
+        if (detailPositions[a * 3] === 0 && detailPositions[a * 3 + 2] === 0) continue;
+        if (detailPositions[b * 3] === 0 && detailPositions[b * 3 + 2] === 0) continue;
+        if (detailPositions[c * 3] === 0 && detailPositions[c * 3 + 2] === 0) continue;
+        if (detailPositions[d * 3] === 0 && detailPositions[d * 3 + 2] === 0) continue;
+
+        detailIndices.push(a, c, b, b, c, d);
+    }
+}
+
+const detailGeometry = new THREE.BufferGeometry();
+detailGeometry.setAttribute("position", new THREE.Float32BufferAttribute(detailPositions, 3));
+detailGeometry.setAttribute("color", new THREE.Float32BufferAttribute(detailColors, 3));
+detailGeometry.setIndex(detailIndices);
+detailGeometry.computeVertexNormals();
+
+const detailMaterial = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.9,
+    metalness: 0.0,
+    side: THREE.FrontSide
+});
+
+const detailPatch = new THREE.Mesh(detailGeometry, detailMaterial);
+detailPatch.visible = false;
+scene.add(detailPatch);
+
+// ============================================================
 // OCEAN
 // The water is a physical sphere slightly above sea level.
 // It has no continent mask, so it can never create ghost land.
@@ -462,6 +593,7 @@ window.addEventListener("mousemove", (event) => {
     planet.rotation.y += deltaX * DRAG_SPEED;
     oceanSurface.rotation.y = planet.rotation.y;
     atmosphere.rotation.y = planet.rotation.y;
+    detailPatch.rotation.y = planet.rotation.y;
 
     rotationVelocity = deltaX * DRAG_SPEED;
     previousMouseX = event.clientX;
@@ -485,7 +617,11 @@ function animate() {
 
         oceanSurface.rotation.y = planet.rotation.y;
         atmosphere.rotation.y = planet.rotation.y;
+        detailPatch.rotation.y = planet.rotation.y;
     }
+
+    detailPatch.rotation.y = planet.rotation.y;
+    detailPatch.visible = cameraDistance.value < 2.35;
 
     cameraDistance.value = THREE.MathUtils.lerp(cameraDistance.value, cameraDistance.target, 0.075);
     camera.position.set(0, 0.05, cameraDistance.value);
