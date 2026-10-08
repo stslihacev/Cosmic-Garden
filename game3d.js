@@ -1,5 +1,4 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
-import { mergeVertices } from "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/BufferGeometryUtils.js";
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000308);
@@ -273,17 +272,64 @@ planetGeometry.setAttribute(
 );
 planetGeometry.setIndex(indices);
 
-// Merge identical edge vertices so normals flow continuously across cube faces.
-const smoothGeometry = mergeVertices(planetGeometry, 1e-5);
-smoothGeometry.computeVertexNormals();
+// Make every triangle face outward. The six cube faces have different
+// local coordinate orientations, so we correct winding from the actual
+// geometry instead of relying on a hard-coded winding order.
+const positionArray = planetGeometry.attributes.position.array;
+
+for (let i = 0; i < indices.length; i += 3) {
+    const ia = indices[i] * 3;
+    const ib = indices[i + 1] * 3;
+    const ic = indices[i + 2] * 3;
+
+    const ax = positionArray[ia];
+    const ay = positionArray[ia + 1];
+    const az = positionArray[ia + 2];
+
+    const bx = positionArray[ib];
+    const by = positionArray[ib + 1];
+    const bz = positionArray[ib + 2];
+
+    const cx = positionArray[ic];
+    const cy = positionArray[ic + 1];
+    const cz = positionArray[ic + 2];
+
+    const abx = bx - ax;
+    const aby = by - ay;
+    const abz = bz - az;
+
+    const acx = cx - ax;
+    const acy = cy - ay;
+    const acz = cz - az;
+
+    const nx = aby * acz - abz * acy;
+    const ny = abz * acx - abx * acz;
+    const nz = abx * acy - aby * acx;
+
+    const centerX = (ax + bx + cx) / 3;
+    const centerY = (ay + by + cy) / 3;
+    const centerZ = (az + bz + cz) / 3;
+
+    // Outward normal must point roughly in the same direction as
+    // the vertex position on a spherical surface.
+    if (nx * centerX + ny * centerY + nz * centerZ < 0) {
+        const temp = indices[i + 1];
+        indices[i + 1] = indices[i + 2];
+        indices[i + 2] = temp;
+    }
+}
+
+planetGeometry.setIndex(indices);
+planetGeometry.computeVertexNormals();
 
 const planetMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.86,
-    metalness: 0.0
+    metalness: 0.0,
+    side: THREE.FrontSide
 });
 
-const planet = new THREE.Mesh(smoothGeometry, planetMaterial);
+const planet = new THREE.Mesh(planetGeometry, planetMaterial);
 scene.add(planet);
 
 // ============================================================
