@@ -420,6 +420,22 @@ const stars = new THREE.Points(starGeometry, starMaterial);
 scene.add(stars);
 
 // ============================================================
+// CAMERA ZOOM / SURFACE APPROACH
+// ============================================================
+
+const cameraTarget = new THREE.Vector3(0, 0, 0);
+const cameraDistance = { value: 4.25, target: 4.25 };
+const MIN_CAMERA_DISTANCE = 1.18;
+const MAX_CAMERA_DISTANCE = 5.4;
+const ZOOM_SPEED = 0.0028;
+
+renderer.domElement.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    cameraDistance.target += event.deltaY * ZOOM_SPEED;
+    cameraDistance.target = THREE.MathUtils.clamp(cameraDistance.target, MIN_CAMERA_DISTANCE, MAX_CAMERA_DISTANCE);
+}, { passive: false });
+
+// ============================================================
 // PLANET CONTROL
 // ============================================================
 
@@ -470,6 +486,10 @@ function animate() {
         oceanSurface.rotation.y = planet.rotation.y;
         atmosphere.rotation.y = planet.rotation.y;
     }
+
+    cameraDistance.value = THREE.MathUtils.lerp(cameraDistance.value, cameraDistance.target, 0.075);
+    camera.position.set(0, 0.05, cameraDistance.value);
+    camera.lookAt(cameraTarget);
 
     const time = performance.now() * 0.001;
     const pulse = 0.96 + Math.sin(time * 0.65) * 0.018;
