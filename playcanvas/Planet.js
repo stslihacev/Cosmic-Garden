@@ -52,7 +52,7 @@ function sphericalUv(d){
  return [u,v];
 }
 
-function createPlanetTexture(app,size=1024,onProgress=()=>{}){
+function createPlanetTexture(app,size=1024){
  const canvas=document.createElement("canvas");
  canvas.width=size;
  canvas.height=size/2;
@@ -61,10 +61,32 @@ function createPlanetTexture(app,size=1024,onProgress=()=>{}){
  const image=ctx.createImageData(canvas.width,canvas.height);
  const data=image.data;
 
- // Start with a usable ocean so the first frame is not blank.
- for(let i=0;i<data.length;i+=4){
-  data[i]=3; data[i+1]=20; data[i+2]=41; data[i+3]=255;
+ // Generate the complete texture before the first frame so the planet
+ // appears fully formed instead of revealing itself row by row.
+ for(let py=0;py<canvas.height;py++){
+  const v=py/(canvas.height-1);
+  const lat=(.5-v)*Math.PI;
+  const cosLat=Math.cos(lat);
+  const sinLat=Math.sin(lat);
+
+  for(let px=0;px<canvas.width;px++){
+   const u=px/(canvas.width-1);
+   const lon=(u-.5)*Math.PI*2;
+   const d={
+    x:cosLat*Math.cos(lon),
+    y:sinLat,
+    z:cosLat*Math.sin(lon)
+   };
+
+   const c=terrainColor(terrainAt(d));
+   const i=(py*canvas.width+px)*4;
+   data[i]=Math.round(c[0]*255);
+   data[i+1]=Math.round(c[1]*255);
+   data[i+2]=Math.round(c[2]*255);
+   data[i+3]=255;
+  }
  }
+
  ctx.putImageData(image,0,0);
 
  const texture=new pc.Texture(app.graphicsDevice,{
@@ -78,60 +100,8 @@ function createPlanetTexture(app,size=1024,onProgress=()=>{}){
   addressV:pc.ADDRESS_CLAMP_TO_EDGE
  });
  texture.setSource(canvas);
-
- let row=0;
- const rowsPerFrame=8;
- let lastUpload=0;
-
- const buildChunk=()=>{
-  const end=Math.min(canvas.height,row+rowsPerFrame);
-
-  for(let py=row;py<end;py++){
-   const v=py/(canvas.height-1);
-   const lat=(.5-v)*Math.PI;
-   const cosLat=Math.cos(lat);
-   const sinLat=Math.sin(lat);
-
-   for(let px=0;px<canvas.width;px++){
-    const u=px/(canvas.width-1);
-    const lon=(u-.5)*Math.PI*2;
-    const d={
-     x:cosLat*Math.cos(lon),
-     y:sinLat,
-     z:cosLat*Math.sin(lon)
-    };
-
-    const c=terrainColor(terrainAt(d));
-    const i=(py*canvas.width+px)*4;
-    data[i]=Math.round(c[0]*255);
-    data[i+1]=Math.round(c[1]*255);
-    data[i+2]=Math.round(c[2]*255);
-    data[i+3]=255;
-   }
-  }
-
-  row=end;
-  onProgress(row/canvas.height);
-
-  // Upload only occasionally; rebuilding the GPU texture every row would be slower
-  // than the procedural generation itself.
-  if(row===canvas.height || row-lastUpload>=128){
-   ctx.putImageData(image,0,0);
-   texture.setSource(canvas);
-   lastUpload=row;
-  }
-
-  if(row<canvas.height){
-   requestAnimationFrame(buildChunk);
-  }else{
-   onProgress(1);
-  }
- };
-
- requestAnimationFrame(buildChunk);
  return texture;
 }
-
 export function createPlanet(app,{onProgress=()=>{}}={}){
  const {vertices,faces}=buildIcosphere(6);
 
