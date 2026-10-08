@@ -12,7 +12,7 @@ function midpoint(a,b){
  return normalize([(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2]);
 }
 
-function buildIcosphere(subdivisions=6){
+function buildIcosphere(subdivisions=7){
  const base=[
   [-1,PHI,0],[1,PHI,0],[-1,-PHI,0],[1,-PHI,0],
   [0,-1,PHI],[0,1,PHI],[0,-1,-PHI],[0,1,-PHI],
@@ -52,7 +52,7 @@ function sphericalUv(d){
  return [u,v];
 }
 
-function createPlanetTexture(app,size=1024){
+function createPlanetTexture(app,size=2048){
  const canvas=document.createElement("canvas");
  canvas.width=size;
  canvas.height=size/2;
@@ -61,8 +61,6 @@ function createPlanetTexture(app,size=1024){
  const image=ctx.createImageData(canvas.width,canvas.height);
  const data=image.data;
 
- // Generate the complete texture before the first frame so the planet
- // appears fully formed instead of revealing itself row by row.
  for(let py=0;py<canvas.height;py++){
   const v=py/(canvas.height-1);
   const lat=(.5-v)*Math.PI;
@@ -102,11 +100,10 @@ function createPlanetTexture(app,size=1024){
  texture.setSource(canvas);
  return texture;
 }
-export function createPlanet(app,{onProgress=()=>{}}={}){
- const {vertices,faces}=buildIcosphere(6);
 
- // Evaluate terrain once per shared icosphere vertex instead of once for every
- // triangle corner. This removes a large amount of duplicate CPU work.
+export function createPlanet(app){
+ const {vertices,faces}=buildIcosphere(7);
+
  const surface=vertices.map(d=>{
   const t=terrainAt({x:d[0],y:d[1],z:d[2]});
   return [d[0]*t.height,d[1]*t.height,d[2]*t.height];
@@ -131,8 +128,6 @@ export function createPlanet(app,{onProgress=()=>{}}={}){
    const p=surface[[ia,ib,ic][k]];
 
    positions.push(...p);
-   // Keep the smooth spherical normal for now; terrain displacement is intentionally
-   // subtle and this avoids faceted lighting at the planet scale.
    normals.push(...normalize(d));
    uvs.push(uv[k][0],uv[k][1]);
   }
@@ -148,10 +143,8 @@ export function createPlanet(app,{onProgress=()=>{}}={}){
  mesh.update(pc.PRIMITIVE_TRIANGLES);
 
  const material=new pc.StandardMaterial();
- const texture=createPlanetTexture(app,1024,onProgress);
+ const texture=createPlanetTexture(app,2048);
 
- // Emissive keeps the generated procedural palette stable and prevents the
- // directional light from washing the continents into gray.
  material.diffuse.set(0,0,0);
  material.emissive.set(1,1,1);
  material.emissiveMap=texture;
