@@ -131,14 +131,15 @@ function terrainAt(direction) {
 
     const mountainBelts = smoothstep(0.52, 0.80, elevation);
     const mountainStructure =
-        ridgeLarge * 0.58 +
-        ridgeRegional * 0.30 +
-        ridgeDetail * 0.12;
+        ridgeLarge * 0.48 +
+        ridgeRegional * 0.27 +
+        ridgeDetail * 0.05 +
+        regionalA * 0.20;
 
     const mountainMask =
         land *
         mountainBelts *
-        smoothstep(0.38, 0.70, mountainStructure);
+        smoothstep(0.44, 0.76, mountainStructure);
 
     if (land < 0.5) {
         return {
@@ -155,8 +156,8 @@ function terrainAt(direction) {
     const landElevation = THREE.MathUtils.clamp((elevation - 0.30) / 0.70, 0, 1);
 
     // Deliberately stronger than the old planet: the relief must read as geometry.
-    const rolling = Math.pow(landElevation, 1.35) * 0.055;
-    const mountains = Math.pow(mountainMask, 1.12) * 0.16;
+    const rolling = Math.pow(landElevation, 1.25) * 0.045;
+    const mountains = Math.pow(mountainMask, 1.45) * 0.105;
     const coastLift = coast * 0.012;
 
     return {
@@ -192,9 +193,9 @@ const snowColor = new THREE.Color(0xe2e3df);
 // Temporary visual marker for the first continent we will refine.
 // It is intentionally vivid so we can judge geometry separately from
 // the planet's normal green/brown palette.
-const testContinentCenter = new THREE.Vector3(0.08, 0.10, 0.99).normalize();
-const testContinentColor = new THREE.Color(0xf28c28);
-const TEST_CONTINENT_ANGLE = 0.62;
+const testContinentCenter = new THREE.Vector3(0.0, -0.12, 1.0).normalize();
+const testContinentColor = new THREE.Color(0xff4f00);
+const TEST_CONTINENT_ANGLE = 0.95;
 const TEST_CONTINENT_COS = Math.cos(TEST_CONTINENT_ANGLE);
 
 function addFace(face) {
@@ -252,7 +253,7 @@ function addFace(face) {
                 color.multiplyScalar(variation);
 
                 if (isTestContinent) {
-                    color.lerp(testContinentColor, 0.88);
+                    color.lerp(testContinentColor, 0.98);
                 }
             }
 
@@ -505,8 +506,8 @@ scene.add(detailPatch);
 
 const oceanGeometry = new THREE.SphereGeometry(1.003, 192, 128);
 const oceanMaterial = new THREE.MeshStandardMaterial({
-    color: 0x087fb5,
-    roughness: 0.48,
+    color: 0x075b80,
+    roughness: 0.72,
     metalness: 0.0
 });
 
@@ -535,10 +536,10 @@ scene.add(atmosphere);
 // Strong directional light makes the actual relief readable.
 // ============================================================
 
-const ambientLight = new THREE.AmbientLight(0x9db9cf, 0.08);
+const ambientLight = new THREE.AmbientLight(0x9db9cf, 0.12);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 4.2);
+const sunLight = new THREE.DirectionalLight(0xffffff, 2.7);
 sunLight.position.set(-3.5, 2.4, 4.5);
 sunLight.target.position.set(0, 0, 0);
 scene.add(sunLight);
@@ -650,7 +651,6 @@ function animate() {
     }
 
     detailPatch.rotation.y = planet.rotation.y;
-    detailPatch.visible = false;
 
     cameraDistance.value = THREE.MathUtils.lerp(cameraDistance.value, cameraDistance.target, 0.075);
     camera.position.set(0, 0.05, cameraDistance.value);
