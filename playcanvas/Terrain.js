@@ -96,7 +96,7 @@ export function terrainAt(d){
 
  return {
   isLand:true,land,elevation,detail,micro,grain,
-  mountainMask:mountains,landElevation:e,height,moisture
+  mountainMask:mountains,landElevation:e,height,moisture,y
  };
 }
 
