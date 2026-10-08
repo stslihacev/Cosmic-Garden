@@ -347,8 +347,8 @@ scene.add(planet);
 // than simply enlarging the coarse global grid.
 // ============================================================
 
-const DETAIL_RESOLUTION = 192;
-const DETAIL_ANGLE = 0.72;
+const DETAIL_RESOLUTION = 224;
+const DETAIL_ANGLE = 1.05;
 const detailPositions = [];
 const detailColors = [];
 const detailIndices = [];
@@ -378,9 +378,14 @@ function addDetailVertex(direction) {
         );
 
         // Fine relief is deliberately smooth and layered instead of blocky.
-        radius += Math.pow(Math.max(0, fineA - 0.42), 1.25) * 0.018;
-        radius += Math.pow(Math.max(0, fineB - 0.48), 1.35) * 0.012;
-        radius += (micro - 0.5) * 0.004;
+        // Make the close terrain visibly three-dimensional. The global
+        // planet keeps subtle relief, while the close patch gets a much
+        // stronger geological scale so mountains and valleys read from
+        // the camera instead of looking like color noise.
+        radius += (fineA - 0.5) * 0.035;
+        radius += Math.pow(Math.max(0, fineB - 0.34), 1.15) * 0.085;
+        radius += (micro - 0.5) * 0.012;
+        radius += terrain.mountainMask * 0.045;
     }
 
     detailPositions.push(
@@ -403,7 +408,7 @@ function addDetailVertex(direction) {
         color.lerp(rockColor, smoothstep(0.48, 0.72, m));
         color.lerp(snowColor, smoothstep(0.76, 1.0, m + e * 0.18));
 
-        const localVariation = 0.92 + (terrain.detail - 0.5) * 0.14;
+            const localVariation = 0.90 + (terrain.detail - 0.5) * 0.20;
         color.multiplyScalar(localVariation);
     }
 
@@ -621,7 +626,7 @@ function animate() {
     }
 
     detailPatch.rotation.y = planet.rotation.y;
-    detailPatch.visible = cameraDistance.value < 2.35;
+    detailPatch.visible = cameraDistance.value < 3.05;
 
     cameraDistance.value = THREE.MathUtils.lerp(cameraDistance.value, cameraDistance.target, 0.075);
     camera.position.set(0, 0.05, cameraDistance.value);
