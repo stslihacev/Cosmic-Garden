@@ -466,7 +466,7 @@ detailGeometry.computeVertexNormals();
 
 const detailMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.9,
+    roughness: 0.78,
     metalness: 0.0,
     side: THREE.FrontSide
 });
@@ -516,9 +516,11 @@ scene.add(atmosphere);
 const ambientLight = new THREE.AmbientLight(0x9db9cf, 0.18);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 2.45);
+const sunLight = new THREE.DirectionalLight(0xffffff, 3.2);
 sunLight.position.set(-3.5, 2.4, 4.5);
+sunLight.target.position.set(0, 0, 0);
 scene.add(sunLight);
+scene.add(sunLight.target);
 
 // ============================================================
 // STARS
@@ -626,7 +628,7 @@ function animate() {
     }
 
     detailPatch.rotation.y = planet.rotation.y;
-    detailPatch.visible = cameraDistance.value < 3.05;
+    detailPatch.visible = false;
 
     cameraDistance.value = THREE.MathUtils.lerp(cameraDistance.value, cameraDistance.target, 0.075);
     camera.position.set(0, 0.05, cameraDistance.value);
