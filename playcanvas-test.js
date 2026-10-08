@@ -10,6 +10,7 @@ const loading=document.getElementById("loading");
 const app=new pc.Application(canvas);
 app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
 app.setCanvasResolution(pc.RESOLUTION_AUTO);
+app.scene.ambientLight = new pc.Color(0.55,0.58,0.64);
 app.start();
 window.addEventListener("resize",()=>app.resizeCanvas());
 
@@ -19,12 +20,12 @@ camera.setPosition(0,0.05,4.25);
 app.root.addChild(camera);
 
 const light=new pc.Entity("Sun");
-light.addComponent("light",{type:"directional",color:new pc.Color(1,0.94,0.82),intensity:1.35,castShadows:false});
+light.addComponent("light",{type:"directional",color:new pc.Color(1,0.94,0.82),intensity:0.8,castShadows:false});
 light.setEulerAngles(28,-35,0);
 app.root.addChild(light);
 
 const fill=new pc.Entity("FillLight");
-fill.addComponent("light",{type:"directional",color:new pc.Color(0.45,0.62,1),intensity:0.65,castShadows:false});
+fill.addComponent("light",{type:"directional",color:new pc.Color(0.45,0.62,1),intensity:0.5,castShadows:false});
 fill.setEulerAngles(-35,145,0);
 app.root.addChild(fill);
 const fill2=new pc.Entity("AmbientFill");
