@@ -19,14 +19,19 @@ camera.setPosition(0,0.05,4.25);
 app.root.addChild(camera);
 
 const light=new pc.Entity("Sun");
-light.addComponent("light",{type:"directional",color:new pc.Color(1,0.94,0.82),intensity:2.2,castShadows:false});
+light.addComponent("light",{type:"directional",color:new pc.Color(1,0.94,0.82),intensity:1.35,castShadows:false});
 light.setEulerAngles(28,-35,0);
 app.root.addChild(light);
 
 const fill=new pc.Entity("FillLight");
-fill.addComponent("light",{type:"directional",color:new pc.Color(0.45,0.62,1),intensity:0.35,castShadows:false});
+fill.addComponent("light",{type:"directional",color:new pc.Color(0.45,0.62,1),intensity:0.65,castShadows:false});
 fill.setEulerAngles(-35,145,0);
 app.root.addChild(fill);
+const fill2=new pc.Entity("AmbientFill");
+fill2.addComponent("light",{type:"omni",color:new pc.Color(0.22,0.28,0.38),intensity:0.18,range:20,castShadows:false});
+fill2.setPosition(0,0,4);
+app.root.addChild(fill2);
+
 
 const planet=createPlanet(app,64);
 const ocean=createOcean(app);
