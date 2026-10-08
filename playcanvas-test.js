@@ -33,7 +33,7 @@ fill2.setPosition(0,0,4);
 app.root.addChild(fill2);
 
 
-const planet=createPlanet(app,64);
+const planet=createPlanet(app,128);
 const ocean=createOcean(app);
 
 
