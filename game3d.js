@@ -17,7 +17,7 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.08;
 document.body.appendChild(renderer.domElement);
 
-const planet=createPlanet(160);
+const planet=createPlanet(128);
 const ocean=createOcean();
 const stars=createStars();
 scene.add(planet,ocean.mesh,stars.mesh);
