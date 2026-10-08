@@ -63,7 +63,7 @@ export function createPlanet(resolution=128){
     geometry.setAttribute("color",new THREE.Float32BufferAttribute(colorsArray,3));
     geometry.setIndex(indices);
     const welded=weldAndFix(geometry);
-    // Temporarily disabled during the architecture refactor.\n    // The connected-continent pass is moved to a dedicated lightweight system\n    // so it cannot block the first render.\n
+    // Continent highlighting will be added as a separate lightweight system.\n
     const material=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.86,metalness:0,side:THREE.FrontSide});
     return new THREE.Mesh(welded,material);
 }
