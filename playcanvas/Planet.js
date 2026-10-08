@@ -37,7 +37,7 @@ function fixWinding(indices,positions){
  }
 }
 
-export function createPlanet(app,resolution=64){
+export function createPlanet(app,resolution=128){
  const positions=[],normals=[],colors=[],indices=[];
  for(const face of ["px","nx","py","ny","pz","nz"]){
   const base=positions.length/3;
