@@ -5,6 +5,14 @@ import { createStars } from "./environment/Stars.js";
 import { attachCameraControls } from "./camera/CameraController.js";
 
 const scene=new THREE.Scene();
+
+function showFatalError(error) {
+    console.error(error);
+    const panel=document.createElement("pre");
+    panel.style.cssText="position:fixed;left:12px;right:12px;top:12px;z-index:9999;padding:16px;background:#120006;color:#ffb3c1;border:1px solid #ff5277;border-radius:8px;font:14px/1.45 monospace;white-space:pre-wrap;";
+    panel.textContent="Cosmic Garden не смог запустить 3D-сцену.\\n\\n"+(error?.stack||error?.message||String(error));
+    document.body.appendChild(panel);
+}
 scene.background=new THREE.Color(0x000308);
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,1000);
 camera.position.set(0,0.05,4.25);
@@ -17,7 +25,7 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.08;
 document.body.appendChild(renderer.domElement);
 
-const planet=createPlanet(128);
+let planet;\ntry {\n    planet=createPlanet(64);\n} catch (error) {\n    showFatalError(error);\n    throw error;\n}
 const ocean=createOcean();
 const stars=createStars();
 scene.add(planet,ocean.mesh,stars.mesh);
