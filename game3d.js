@@ -1,4 +1,4 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";\nimport { mergeVertices } from "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/BufferGeometryUtils.js";
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000308);
@@ -121,14 +121,14 @@ function terrainAt(direction) {
     const ridgeRegional = ridgedFbm(x * 5.0 - 7.0, y * 5.0 + 13.0, z * 5.0 - 19.0, 4);
     const ridgeDetail = ridgedFbm(x * 9.0 + 31.0, y * 9.0 - 21.0, z * 9.0 + 11.0, 3);
 
-    const land = smoothstep(0.475, 0.57, continental);
+    const land = smoothstep(0.45, 0.60, continental);
 
     const elevation =
         regionalA * 0.70 +
         regionalB * 0.22 +
         detail * 0.08;
 
-    const mountainBelts = smoothstep(0.56, 0.74, elevation);
+    const mountainBelts = smoothstep(0.52, 0.80, elevation);
     const mountainStructure =
         ridgeLarge * 0.58 +
         ridgeRegional * 0.30 +
@@ -177,7 +177,7 @@ function terrainAt(direction) {
 // direction, so the planet has no painted 2D continent map.
 // ============================================================
 
-const FACE_RESOLUTION = 86;
+const FACE_RESOLUTION = 160;
 const positions = [];
 const colors = [];
 const indices = [];
@@ -329,7 +329,7 @@ const planetMaterial = new THREE.MeshStandardMaterial({
     side: THREE.FrontSide
 });
 
-const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+const planet = new THREE.Mesh(weldedGeometry, planetMaterial);
 scene.add(planet);
 
 // ============================================================
