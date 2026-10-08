@@ -156,7 +156,7 @@ function terrainAt(direction) {
 
     // Deliberately stronger than the old planet: the relief must read as geometry.
     const rolling = Math.pow(landElevation, 1.35) * 0.055;
-    const mountains = Math.pow(mountainMask, 1.35) * 0.24;
+    const mountains = Math.pow(mountainMask, 1.12) * 0.16;
     const coastLift = coast * 0.012;
 
     return {
@@ -188,6 +188,14 @@ const meadowColor = new THREE.Color(0x7d9b51);
 const dryColor = new THREE.Color(0xa58f63);
 const rockColor = new THREE.Color(0x77756f);
 const snowColor = new THREE.Color(0xe2e3df);
+
+// Temporary visual marker for the first continent we will refine.
+// It is intentionally vivid so we can judge geometry separately from
+// the planet's normal green/brown palette.
+const testContinentCenter = new THREE.Vector3(0.08, 0.10, 0.99).normalize();
+const testContinentColor = new THREE.Color(0xf28c28);
+const TEST_CONTINENT_ANGLE = 0.62;
+const TEST_CONTINENT_COS = Math.cos(TEST_CONTINENT_ANGLE);
 
 function addFace(face) {
     const base = positions.length / 3;
@@ -223,6 +231,9 @@ function addFace(face) {
             positions.push(dx * radius, dy * radius, dz * radius);
 
             const color = new THREE.Color();
+            const isTestContinent =
+                terrain.isLand &&
+                direction.dot(testContinentCenter) > TEST_CONTINENT_COS;
 
             if (!terrain.isLand) {
                 // Ocean on the planet body. The separate water shell sits above this.
@@ -239,6 +250,10 @@ function addFace(face) {
 
                 const variation = 0.94 + (terrain.detail - 0.5) * 0.10;
                 color.multiplyScalar(variation);
+
+                if (isTestContinent) {
+                    color.lerp(testContinentColor, 0.88);
+                }
             }
 
             colors.push(color.r, color.g, color.b);
@@ -395,6 +410,9 @@ function addDetailVertex(direction) {
     );
 
     const color = new THREE.Color();
+    const isTestContinent =
+        terrain.isLand &&
+        direction.dot(testContinentCenter) > TEST_CONTINENT_COS;
 
     if (!terrain.isLand) {
         color.set(0x064d78);
@@ -408,8 +426,12 @@ function addDetailVertex(direction) {
         color.lerp(rockColor, smoothstep(0.48, 0.72, m));
         color.lerp(snowColor, smoothstep(0.76, 1.0, m + e * 0.18));
 
-            const localVariation = 0.90 + (terrain.detail - 0.5) * 0.20;
+        const localVariation = 0.90 + (terrain.detail - 0.5) * 0.20;
         color.multiplyScalar(localVariation);
+
+        if (isTestContinent) {
+            color.lerp(testContinentColor, 0.88);
+        }
     }
 
     detailColors.push(color.r, color.g, color.b);
@@ -484,8 +506,8 @@ scene.add(detailPatch);
 const oceanGeometry = new THREE.SphereGeometry(1.003, 192, 128);
 const oceanMaterial = new THREE.MeshStandardMaterial({
     color: 0x087fb5,
-    roughness: 0.18,
-    metalness: 0.02
+    roughness: 0.48,
+    metalness: 0.0
 });
 
 const oceanSurface = new THREE.Mesh(oceanGeometry, oceanMaterial);
@@ -548,10 +570,10 @@ starGeometry.setAttribute(
 
 const starMaterial = new THREE.PointsMaterial({
     color: 0xffffff,
-    size: 0.045,
+    size: 0.022,
     sizeAttenuation: true,
     transparent: true,
-    opacity: 0.72
+    opacity: 0.45
 });
 
 const stars = new THREE.Points(starGeometry, starMaterial);
@@ -638,7 +660,7 @@ function animate() {
     const pulse = 0.96 + Math.sin(time * 0.65) * 0.018;
     oceanMaterial.color.setRGB(0.033 * pulse, 0.50 * pulse, 0.71 * pulse);
 
-    starMaterial.opacity = 0.72 + Math.sin(time * 1.5) * 0.12;
+    starMaterial.opacity = 0.45 + Math.sin(time * 1.5) * 0.06;
 
     renderer.render(scene, camera);
 }
