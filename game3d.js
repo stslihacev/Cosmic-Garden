@@ -320,7 +320,13 @@ for (let i = 0; i < indices.length; i += 3) {
 }
 
 planetGeometry.setIndex(indices);
-planetGeometry.computeVertexNormals();
+
+// Weld duplicated vertices along the six cube-face borders before
+// calculating normals. Without this, every cube face keeps its own
+// copy of the edge vertices, which makes the planet read as six
+// faceted panels instead of one continuous spherical surface.
+const weldedGeometry = mergeVertices(planetGeometry, 1e-4);
+weldedGeometry.computeVertexNormals();
 
 const planetMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
