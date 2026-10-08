@@ -195,7 +195,7 @@ const snowColor = new THREE.Color(0xe2e3df);
 // the planet's normal green/brown palette.
 const testContinentCenter = new THREE.Vector3(0.0, -0.12, 1.0).normalize();
 const testContinentColor = new THREE.Color(0xff4f00);
-const TEST_CONTINENT_ANGLE = 0.95;
+const TEST_CONTINENT_ANGLE = 0.62;
 const TEST_CONTINENT_COS = Math.cos(TEST_CONTINENT_ANGLE);
 
 function addFace(face) {
@@ -506,8 +506,8 @@ scene.add(detailPatch);
 
 const oceanGeometry = new THREE.SphereGeometry(1.003, 192, 128);
 const oceanMaterial = new THREE.MeshStandardMaterial({
-    color: 0x075b80,
-    roughness: 0.72,
+    color: 0x04435f,
+    roughness: 0.78,
     metalness: 0.0
 });
 
@@ -529,6 +529,7 @@ const atmosphereMaterial = new THREE.MeshBasicMaterial({
 });
 
 const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+atmosphere.visible = false;
 scene.add(atmosphere);
 
 // ============================================================
@@ -536,14 +537,11 @@ scene.add(atmosphere);
 // Strong directional light makes the actual relief readable.
 // ============================================================
 
-const ambientLight = new THREE.AmbientLight(0x9db9cf, 0.12);
+const ambientLight = new THREE.AmbientLight(0xb8c7d6, 0.72);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 2.7);
-sunLight.position.set(-3.5, 2.4, 4.5);
-sunLight.target.position.set(0, 0, 0);
-scene.add(sunLight);
-scene.add(sunLight.target);
+const hemisphereLight = new THREE.HemisphereLight(0xdbeeff, 0x26333d, 0.34);
+scene.add(hemisphereLight);
 
 // ============================================================
 // STARS
