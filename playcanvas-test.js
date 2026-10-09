@@ -1,6 +1,7 @@
 import * as pc from "playcanvas";
 import { createPlanet } from "./playcanvas/Planet.js";
 import { createOcean } from "./playcanvas/Ocean.js";
+import { createTrees } from "./playcanvas/Trees.js";
 
 import { attachCameraControls } from "./playcanvas/CameraController.js";
 
@@ -36,11 +37,16 @@ app.root.addChild(fill2);
 
 const planet=createPlanet(app,128);
 const ocean=createOcean(app);
+const trees=createTrees(app,2600);
 
 
 const planetEntity=new pc.Entity("Planet");
 planetEntity.addComponent("render",{meshInstances:[planet.meshInstance]});
 app.root.addChild(planetEntity);
+
+const forestEntity=new pc.Entity("ForestCanopy");
+forestEntity.addComponent("render",{meshInstances:trees});
+planetEntity.addChild(forestEntity);
 
 const oceanEntity=new pc.Entity("Ocean");
 oceanEntity.addComponent("render",{meshInstances:[ocean.meshInstance]});
