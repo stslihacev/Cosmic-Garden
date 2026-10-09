@@ -167,10 +167,14 @@ void main(void) {
     float moisture=clamp((moistureRaw-0.405)/0.19,0.0,1.0);
     float latitude=abs(d.y);
 
-    float mountainBase=ridge(warped*11.0+vec3(33.0,-17.0,9.0));
-    float mountainRidge=ridge(warped*27.0+vec3(-6.0,27.0,-19.0));
-    float mountain=sm(0.49,0.78,mountainBase*0.76+mountainRidge*0.24)
-                  *sm(0.43,0.61,continent);
+    // Use the same broad ridge frequencies and inland mask as Terrain.js.
+    // The previous shader used much higher frequencies (11/27), so its mountain
+    // mask did not match the actual raised mountain ranges in the mesh.
+    float mountainBase=ridge(warped*3.2+vec3(33.0,-17.0,9.0));
+    float mountainRidge=ridge(warped*8.5+vec3(-6.0,27.0,-19.0));
+    float mountainField=mountainBase*0.78+mountainRidge*0.22;
+    float mountain=sm(0.50,0.76,mountainField)
+                  *sm(0.50,0.67,continent);
 
     float macroDetail=fbm(warped*38.0+vec3(21.0,-8.0,4.0));
     float microDetail=fbm(warped*105.0+vec3(-17.0,11.0,27.0));
