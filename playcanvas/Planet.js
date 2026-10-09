@@ -188,19 +188,17 @@ void main(void) {
     // than low-contrast blurry colour clouds.
     // Keep colour variation subordinate to the large biome map. Fine detail
     // should read as terrain texture, not as a planet-wide patchwork of colours.
-    float patchLarge=noise3(warped*18.0+vec3(16.0,3.0,29.0));
-    float patchMedium=noise3(warped*52.0+vec3(-17.0,11.0,27.0));
-    float patchFine=noise3(warped*135.0+vec3(7.0,-31.0,19.0));
-    float vegetationClusters=smoothstep(0.47,0.64,patchLarge);
-    float exposedGround=smoothstep(0.61,0.78,patchMedium);
-    float microMarks=smoothstep(0.45,0.68,patchFine);
+    float patchLarge=noise3(warped*58.0+vec3(16.0,3.0,29.0));
+    float patchMedium=noise3(warped*145.0+vec3(-17.0,11.0,27.0));
+    float patchFine=noise3(warped*310.0+vec3(7.0,-31.0,19.0));
+    float vegetationClusters=smoothstep(0.43,0.59,patchLarge);
+    float exposedGround=smoothstep(0.57,0.73,patchMedium);
+    float microMarks=smoothstep(0.42,0.66,patchFine);
 
-    // Broad forest masses get subtle canopy-density variation; exposed ground
-    // is limited to dry areas, and high-frequency grain has low colour contrast.
-    landColor=mix(landColor,landColor*vec3(0.72,0.82,0.68),vegetationClusters*forestMask*0.42);
-    landColor=mix(landColor,vec3(0.56,0.43,0.27),exposedGround*dryMask*0.38);
-    landColor*=mix(0.94,1.045,microMarks);
-    landColor*=0.94+macroDetail*0.12;
+    landColor=mix(landColor,landColor*vec3(0.58,0.69,0.49),vegetationClusters*forestMask*0.78);
+    landColor=mix(landColor,vec3(0.66,0.49,0.29),exposedGround*dryMask*0.78);
+    landColor*=mix(0.72,1.16,microMarks);
+    landColor*=0.84+macroDetail*0.32;
 
     vec3 rock=mix(vec3(0.24,0.235,0.21),vec3(0.53,0.49,0.41),mountainRidge);
     float rockySurface=smoothstep(0.25,0.55,mountain);
