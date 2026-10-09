@@ -46,13 +46,17 @@ function buildIcosphere(subdivisions=6){
 // a small equirectangular image. This keeps fine detail crisp when zooming in.
 const vertexShader=`
 attribute vec3 aPosition;
+attribute vec4 aColor;
 uniform mat4 matrix_model;
 uniform mat4 matrix_viewProjection;
 varying vec3 vLocalDir;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
+varying float vBiome;
+varying float vBiome;
 void main(void) {
     vLocalDir = normalize(aPosition);
+    vBiome = aColor.r * 4.0;
     vec4 worldPos = matrix_model * vec4(aPosition, 1.0);
     vWorldPos = worldPos.xyz;
     vWorldNormal = normalize(mat3(matrix_model) * normalize(aPosition));
@@ -180,11 +184,18 @@ void main(void) {
     float grassMask=smoothstep(0.34,0.47,moisture)*(1.0-smoothstep(0.57,0.68,moisture));
     float forestMask=smoothstep(0.52,0.66,moisture)*(1.0-smoothstep(0.78,0.88,moisture));
     float wetMask=smoothstep(0.74,0.86,moisture);
-    // Ordered transitions: broad biome masks define regions; fine noise only decorates them.
-    vec3 landColor=desertColor;
-    landColor=mix(landColor,grassColor,grassMask);
-    landColor=mix(landColor,forestColor,forestMask);
-    landColor=mix(landColor,wetForestColor,wetMask);
+    // Each connected landmass receives one stable biome on the CPU.
+    // Moisture remains available for small local variation, not continent-wide recolouring.
+    float forestContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-0.0));
+    float winterContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-1.0));
+    float desertContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-2.0));
+    float grassContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-3.0));
+    vec3 winterColor=vec3(0.70,0.82,0.88);
+    vec3 landColor=forestColor*forestContinent
+                  +winterColor*winterContinent
+                  +desertColor*desertContinent
+                  +grassColor*grassContinent;
+    landColor=mix(landColor,landColor*vec3(0.82,0.90,0.84),moisture*0.12);
 
     // High-contrast, spatially coherent surface structures. Thresholded noise
     // creates readable vegetation clusters and exposed-soil patches rather
@@ -198,19 +209,20 @@ void main(void) {
     float exposedGround=smoothstep(0.57,0.73,patchMedium);
     float microMarks=smoothstep(0.42,0.66,patchFine);
 
-    landColor=mix(landColor,landColor*vec3(0.58,0.69,0.49),vegetationClusters*forestMask*0.78);
-    landColor=mix(landColor,vec3(0.66,0.49,0.29),exposedGround*dryMask*0.78);
+    landColor=mix(landColor,landColor*vec3(0.58,0.69,0.49),vegetationClusters*forestContinent*0.78);
+    landColor=mix(landColor,vec3(0.66,0.49,0.29),exposedGround*desertContinent*0.78);
     landColor*=mix(0.72,1.16,microMarks);
     landColor*=0.84+macroDetail*0.32;
 
     vec3 rock=mix(vec3(0.24,0.235,0.21),vec3(0.53,0.49,0.41),mountainRidge);
-    float rockySurface=smoothstep(0.25,0.55,mountain);
+    float rockySurface=smoothstep(0.25,0.55,mountain)*(1.0-winterContinent);
     float rockStrata=smoothstep(0.44,0.64,noise3(warped*185.0+vec3(37.0,-8.0,14.0)));
     rock=mix(rock,vec3(0.62,0.57,0.47),rockStrata*0.48);
     landColor=mix(landColor,rock,rockySurface*0.98);
-    float snow=max(sm(0.72,0.94,mountain+macroDetail*0.13),
-                   sm(0.70,0.96,latitude)*sm(0.42,0.72,mountain)*0.75);
-    landColor=mix(landColor,vec3(0.82,0.86,0.89),snow);
+    float snow=max(winterContinent,
+                   max(sm(0.72,0.94,mountain+macroDetail*0.13),
+                       sm(0.70,0.96,latitude)*sm(0.42,0.72,mountain)*0.75));
+    landColor=mix(landColor,vec3(0.82,0.86,0.91),snow);
 
     // Thin, irregular shoreline highlights the shape of the coast.
     float shore=1.0-smoothstep(0.008,0.035,abs(landField-0.5));
@@ -229,31 +241,64 @@ void main(void) {
 
 export function createPlanet(app){
  const {vertices,faces}=buildIcosphere(6);
- const surface=vertices.map(d=>{
-  const t=terrainAt({x:d[0],y:d[1],z:d[2]});
+ const terrain=vertices.map(d=>terrainAt({x:d[0],y:d[1],z:d[2]}));
+ const surface=vertices.map((d,i)=>{
+  const t=terrain[i];
   // Keep land above the ocean shell while retaining the existing macro relief.
   const radius=t.isLand?Math.max(t.height,1.007):1.0;
   return [d[0]*radius,d[1]*radius,d[2]*radius];
  });
- const positions=[],normals=[],indices=[];
+
+ // Find connected landmasses using the actual icosphere topology. The four
+ // largest continents become forest, winter, desert and grassland respectively.
+ const neighbours=vertices.map(()=>new Set());
+ for(const [a,b,c] of faces){
+  neighbours[a].add(b);neighbours[a].add(c);
+  neighbours[b].add(a);neighbours[b].add(c);
+  neighbours[c].add(a);neighbours[c].add(b);
+ }
+ const seen=new Uint8Array(vertices.length);
+ const components=[];
+ for(let i=0;i<vertices.length;i++){
+  if(seen[i]||!terrain[i].isLand)continue;
+  const stack=[i],members=[];
+  seen[i]=1;
+  while(stack.length){
+   const v=stack.pop();members.push(v);
+   for(const n of neighbours[v]){
+    if(!seen[n]&&terrain[n].isLand){seen[n]=1;stack.push(n);}
+   }
+  }
+  components.push(members);
+ }
+ components.sort((a,b)=>b.length-a.length);
+ const biomeByVertex=new Uint8Array(vertices.length);
+ for(let c=0;c<components.length;c++){
+  const biome=c%4; // 0 forest, 1 winter, 2 desert, 3 grassland
+  for(const v of components[c])biomeByVertex[v]=biome;
+ }
+
+ const positions=[],normals=[],colors=[],indices=[];
  for(const [ia,ib,ic] of faces){
   const start=positions.length/3;
   for(const index of [ia,ib,ic]){
    const d=vertices[index],p=surface[index];
    positions.push(...p);
    normals.push(...normalize(d));
+   colors.push(biomeByVertex[index]/4,0,0,1);
   }
   indices.push(start,start+1,start+2);
  }
  const mesh=new pc.Mesh(app.graphicsDevice);
  mesh.setPositions(new Float32Array(positions));
  mesh.setNormals(new Float32Array(normals));
+ mesh.setColors(new Float32Array(colors));
  mesh.setIndices(indices);
  mesh.update(pc.PRIMITIVE_TRIANGLES);
 
  const material=new pc.ShaderMaterial({
   uniqueName:"CosmicGardenProceduralSurfaceV1",
-  attributes:{aPosition:pc.SEMANTIC_POSITION,aNormal:pc.SEMANTIC_NORMAL},
+  attributes:{aPosition:pc.SEMANTIC_POSITION,aNormal:pc.SEMANTIC_NORMAL,aColor:pc.SEMANTIC_COLOR},
   vertexGLSL:vertexShader,
   fragmentGLSL:fragmentShader
  });
