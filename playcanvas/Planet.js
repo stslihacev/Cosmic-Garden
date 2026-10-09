@@ -52,7 +52,7 @@ function sphericalUv(d){
  return [u,v];
 }
 
-function createPlanetTexture(app,size=2048){
+function createPlanetTexture(app,size=1024){
  const canvas=document.createElement("canvas");
  canvas.width=size;
  canvas.height=size/2;
@@ -102,7 +102,7 @@ function createPlanetTexture(app,size=2048){
 }
 
 export function createPlanet(app){
- const {vertices,faces}=buildIcosphere(7);
+ const {vertices,faces}=buildIcosphere(6);
 
  const surface=vertices.map(d=>{
   const t=terrainAt({x:d[0],y:d[1],z:d[2]});
@@ -143,7 +143,7 @@ export function createPlanet(app){
  mesh.update(pc.PRIMITIVE_TRIANGLES);
 
  const material=new pc.StandardMaterial();
- const texture=createPlanetTexture(app,2048);
+ const texture=createPlanetTexture(app,1024);
 
  material.diffuse.set(0,0,0);
  material.emissive.set(1,1,1);
