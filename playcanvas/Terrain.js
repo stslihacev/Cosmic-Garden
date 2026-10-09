@@ -101,56 +101,71 @@ export function terrainAt(d){
 }
 
 export function terrainColor(t){
- if(!t.isLand)return [.008,.045,.12,1];
+ if(!t.isLand)return [.006,.035,.105,1];
 
- const e=t.landElevation;
- const m=t.mountainMask;
+ const e=t.landElevation??0;
+ const m=t.mountainMask??0;
  const moisture=t.moisture??.5;
- const d=t.detail??.5;
+ const detail=t.detail??.5;
  const micro=t.micro??.5;
  const grain=t.grain??.5;
+ const latitude=Math.abs(t.y??0);
 
- // Start from biome families rather than painting a single green/brown ramp.
- // Moisture controls vegetation; elevation controls rock/snow.
- let lowland=[.18,.40,.10];
- let dry=[.47,.40,.17];
- let temperate=[.25,.46,.16];
- let lush=[.10,.34,.10];
+ // Clearly separated biome families: arid deserts, open grasslands,
+ // temperate forests, humid forests and cold tundra.
+ const desert=smooth(.30,.48,1-moisture);
+ const forest=smooth(.48,.72,moisture);
+ const wetForest=smooth(.68,.86,moisture);
+ const highland=smooth(.38,.68,e);
+ const polar=smooth(.66,.94,latitude);
 
- let r,g,b;
- const wet=clamp(moisture*.9+(1-Math.abs(e-.38))*0.15,0,1);
- const dryMix=smooth(.25,.62,1-moisture);
- const lushMix=smooth(.38,.78,moisture);
+ let r=mix(.22,.53,desert);
+ let g=mix(.39,.36,desert);
+ let b=mix(.12,.19,desert);
 
- r=mix(lowland[0],dry[0],dryMix*.55);
- g=mix(lowland[1],dry[1],dryMix*.55);
- b=mix(lowland[2],dry[2],dryMix*.55);
+ // Grasslands and temperate ground remain distinct from deserts.
+ const grass=smooth(.22,.48,moisture)*(1-smooth(.68,.84,moisture));
+ r=mix(r,.30,grass*.75);
+ g=mix(g,.49,grass*.85);
+ b=mix(b,.16,grass*.65);
 
- r=mix(r,temperate[0],smooth(.12,.48,e)*.65);
- g=mix(g,temperate[1],smooth(.12,.48,e)*.65);
- b=mix(b,temperate[2],smooth(.12,.48,e)*.65);
+ // Moisture-rich regions become visibly darker and denser green.
+ r=mix(r,.075,forest*.78);
+ g=mix(g,.29,forest*.72);
+ b=mix(b,.085,forest*.78);
+ r=mix(r,.045,wetForest*.38);
+ g=mix(g,.205,wetForest*.38);
+ b=mix(b,.065,wetForest*.38);
 
- r=mix(r,lush[0],lushMix*.55);
- g=mix(g,lush[1],lushMix*.55);
- b=mix(b,lush[2],lushMix*.55);
+ // Dry high plateaus, exposed rock and mountain ridges.
+ const rock=clamp(highland*(.25+.75*smooth(.45,.76,m)),0,1);
+ r=mix(r,.39,rock*.88);
+ g=mix(g,.36,rock*.88);
+ b=mix(b,.30,rock*.88);
 
- // Dry highlands and exposed rock.
- const rock=smooth(.48,.72,e)*(.35+.65*smooth(.35,.75,m));
- r=mix(r,.39,rock);g=mix(g,.37,rock);b=mix(b,.31,rock);
+ // Cold high-latitude terrain shifts toward muted moss, stone and frost.
+ const tundra=polar*(1-smooth(.76,.96,m));
+ r=mix(r,.39,tundra*.7);
+ g=mix(g,.42,tundra*.7);
+ b=mix(b,.34,tundra*.7);
 
- // Snow appears only on the highest mountain ridges.
- const snow=smooth(.72,.94,m+e*.18);
- r=mix(r,.82,snow);g=mix(g,.84,snow);b=mix(b,.86,snow);
+ // Snow is limited to the highest peaks and coldest regions.
+ const snow=Math.max(smooth(.76,.96,m+e*.20),polar*smooth(.48,.72,e)*.72);
+ r=mix(r,.84,snow);
+ g=mix(g,.87,snow);
+ b=mix(b,.89,snow);
 
- // Latitude shifts the climate softly: this adds large-scale biome structure
- // without creating visible stripes.
- const lat=Math.abs(t.y??0);
- const latitudeDry=smooth(.55,.95,lat)*.18;
- r=mix(r,.48,latitudeDry*(1-moisture));
- g=mix(g,.43,latitudeDry*(1-moisture));
- b=mix(b,.22,latitudeDry*(1-moisture));
+ // Multiscale albedo breakup adds visible small-scale surface texture
+ // without adding more expensive geometry.
+ const broad=.90+(detail-.5)*.26;
+ const fine=1+(micro-.5)*.30+(grain-.5)*.18;
+ const patch=1+(smooth(.35,.75,detail)-.5)*.10;
+ const variation=broad*fine*patch;
 
- // Fine albedo breakup, kept below the scale where it becomes visual noise.
- const variation=.90+(d-.5)*.22+(micro-.5)*.10+(grain-.5)*.045;
- return [clamp(r*variation,0,1),clamp(g*variation,0,1),clamp(b*variation,0,1),1];
+ return [
+  clamp(r*variation,0,1),
+  clamp(g*variation,0,1),
+  clamp(b*variation,0,1),
+  1
+ ];
 }
