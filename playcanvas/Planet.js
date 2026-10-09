@@ -147,28 +147,47 @@ void main(void) {
     float grain= noise3(warped*260.0+vec3(7.0,-31.0,19.0));
     float fine= noise3(warped*520.0+vec3(19.0,41.0,-13.0));
 
-    vec3 landColor=mix(vec3(0.46,0.35,0.19),vec3(0.31,0.46,0.17),
-                       sm(0.25,0.48,moisture));
-    landColor=mix(landColor,vec3(0.075,0.24,0.085),sm(0.48,0.70,moisture)*0.88);
-    landColor=mix(landColor,vec3(0.035,0.15,0.055),sm(0.70,0.86,moisture)*0.55);
+    // Use clear biome families first; avoid blending every biome into one
+    // continuous muddy gradient.
+    vec3 desertColor=vec3(0.56,0.405,0.22);
+    vec3 grassColor=vec3(0.31,0.47,0.17);
+    vec3 forestColor=vec3(0.055,0.235,0.075);
+    vec3 wetForestColor=vec3(0.025,0.135,0.045);
+    float dryMask=1.0-smoothstep(0.36,0.49,moisture);
+    float grassMask=smoothstep(0.34,0.47,moisture)*(1.0-smoothstep(0.57,0.68,moisture));
+    float forestMask=smoothstep(0.52,0.66,moisture)*(1.0-smoothstep(0.78,0.88,moisture));
+    float wetMask=smoothstep(0.74,0.86,moisture);
+    vec3 landColor=desertColor*dryMask+grassColor*grassMask
+                  +forestColor*forestMask+wetForestColor*wetMask;
+    float biomeTotal=max(dryMask+grassMask+forestMask+wetMask,0.001);
+    landColor/=biomeTotal;
 
-    // Distinct dry soil patches, vegetation breakup and rocky regions at
-    // several spatial frequencies make the surface read as terrain, not paint.
-    float dryPatch=fbm(warped*52.0+vec3(16.0,3.0,29.0));
-    landColor=mix(landColor,vec3(0.58,0.43,0.25),sm(0.57,0.75,1.0-moisture)*sm(0.46,0.69,dryPatch)*0.62);
-    landColor*=0.76+macroDetail*0.48;
-    landColor*=0.82+microDetail*0.36;
-    landColor*=0.83+grain*0.34;
-    landColor*=0.90+fine*0.20;
+    // High-contrast, spatially coherent surface structures. Thresholded noise
+    // creates readable vegetation clusters and exposed-soil patches rather
+    // than low-contrast blurry colour clouds.
+    float patchLarge=noise3(warped*58.0+vec3(16.0,3.0,29.0));
+    float patchMedium=noise3(warped*145.0+vec3(-17.0,11.0,27.0));
+    float patchFine=noise3(warped*310.0+vec3(7.0,-31.0,19.0));
+    float vegetationClusters=smoothstep(0.43,0.59,patchLarge);
+    float exposedGround=smoothstep(0.57,0.73,patchMedium);
+    float microMarks=smoothstep(0.42,0.66,patchFine);
 
-    vec3 rock=mix(vec3(0.28,0.27,0.24),vec3(0.48,0.45,0.39),mountainRidge);
-    landColor=mix(landColor,rock,sm(0.30,0.68,mountain)*0.94);
+    landColor=mix(landColor,landColor*vec3(0.58,0.69,0.49),vegetationClusters*forestMask*0.78);
+    landColor=mix(landColor,vec3(0.66,0.49,0.29),exposedGround*dryMask*0.78);
+    landColor*=mix(0.72,1.16,microMarks);
+    landColor*=0.84+macroDetail*0.32;
+
+    vec3 rock=mix(vec3(0.24,0.235,0.21),vec3(0.53,0.49,0.41),mountainRidge);
+    float rockySurface=smoothstep(0.25,0.55,mountain);
+    float rockStrata=smoothstep(0.44,0.64,noise3(warped*185.0+vec3(37.0,-8.0,14.0)));
+    rock=mix(rock,vec3(0.62,0.57,0.47),rockStrata*0.48);
+    landColor=mix(landColor,rock,rockySurface*0.98);
     float snow=max(sm(0.72,0.94,mountain+macroDetail*0.13),
                    sm(0.70,0.96,latitude)*sm(0.42,0.72,mountain)*0.75);
     landColor=mix(landColor,vec3(0.82,0.86,0.89),snow);
 
     // Thin, irregular shoreline highlights the shape of the coast.
-    float shore=1.0-sm(0.0,0.055,abs(landField-0.5));
+    float shore=1.0-smoothstep(0.008,0.035,abs(landField-0.5));
     landColor=mix(landColor,vec3(0.60,0.59,0.43),shore*land*0.24);
 
     vec3 color=mix(ocean,landColor,land);
