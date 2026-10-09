@@ -145,7 +145,10 @@ void main(void) {
     float coastNoise=terrainFbm(warped*7.5+vec3(8.0,-21.0,14.0),5);
     float landField=macro+(coastNoise-0.5)*0.105;
     float continent=macro;
-    float land=sm(0.435,0.555,landField);
+    // Terrain.js classifies a vertex as land at landField ~= 0.495.
+    // Keep the shader mask aligned with that same boundary so ocean blue does
+    // not wash across low-lying land far inside a continent.
+    float land=sm(0.492,0.498,landField);
 
     // Deep ocean colour remains visible through the transparent coastal mask.
     vec3 ocean=mix(vec3(0.004,0.025,0.075),vec3(0.012,0.095,0.16),
