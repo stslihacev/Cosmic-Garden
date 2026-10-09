@@ -36,7 +36,7 @@ function mesh(app,pos,idx,color){
   for(const q of [ia,ib,ic]){normals[q]+=nx;normals[q+1]+=ny;normals[q+2]+=nz;}
  }
  for(let i=0;i<normals.length;i+=3){const l=Math.hypot(normals[i],normals[i+1],normals[i+2])||1;normals[i]/=l;normals[i+1]/=l;normals[i+2]/=l;}
- const colors=new Array((pos.length/3)*4);for(let i=0;i<colors.length;i+=4)colors.splice(i,4,...color);
+ const colors=new Float32Array((pos.length/3)*4);for(let i=0;i<colors.length;i+=4){colors[i]=color[0];colors[i+1]=color[1];colors[i+2]=color[2];colors[i+3]=color[3];}
  const m=new pc.Mesh(app.graphicsDevice);m.setPositions(new Float32Array(pos));m.setNormals(new Float32Array(normals));m.setColors(new Float32Array(colors),4);m.setIndices(idx);m.update(pc.PRIMITIVE_TRIANGLES);
  const mat=new pc.StandardMaterial();mat.diffuse.set(1,1,1);mat.diffuseVertexColor=true;mat.specular.set(0.03,0.03,0.03);mat.gloss=.05;mat.update();
  return new pc.MeshInstance(m,mat);
