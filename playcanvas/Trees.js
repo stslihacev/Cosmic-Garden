@@ -41,15 +41,39 @@ function mesh(app,pos,idx,color){
  const mat=new pc.StandardMaterial();mat.diffuse.set(1,1,1);mat.diffuseVertexColor=true;mat.specular.set(0.03,0.03,0.03);mat.gloss=.05;mat.update();
  return new pc.MeshInstance(m,mat);
 }
-export function createTrees(app,count=220){
- const trunks=[],ti=[],leaves=[],li=[];
+export function createTrees(app,count=2600){
+ const trunks=[],ti=[];
+ const foliage=[{pos:[],idx:[],color:[.045,.19,.075,1]},
+                {pos:[],idx:[],color:[.075,.29,.105,1]},
+                {pos:[],idx:[],color:[.13,.37,.15,1]}];
+ let planted=0;
+ // Fibonacci sphere gives even candidate coverage; deterministic noise adds
+ // natural variation without clustering trees in latitude bands.
  for(let i=0;i<count;i++){
-  const y=1-2*(i+.5)/count, r=Math.sqrt(Math.max(0,1-y*y)), a=i*(Math.PI*(3-Math.sqrt(5)))+rnd(i)*.35;
-  const d=norm(Math.cos(a)*r,y,Math.sin(a)*r),t=terrainAt({x:d[0],y:d[1],z:d[2]});
-  if(!t.isLand||t.landElevation>.62||t.mountainMask>.72)continue;
-  const h=.022+rnd(i+4)*.018, baseR=.0035+rnd(i+9)*.0025, base=[d[0]*(t.height+.001),d[1]*(t.height+.001),d[2]*(t.height+.001)];
-  addTrunk(trunks,ti,base,d,h,baseR,5);
-  const top=base.map((v,k)=>v+d[k]*h);addCone(leaves,li,top,d,h*.95,baseR*3.2,6);
+  const y=1-2*(i+.5)/count, r=Math.sqrt(Math.max(0,1-y*y));
+  const a=i*(Math.PI*(3-Math.sqrt(5)))+(rnd(i)-.5)*.55;
+  const d=norm(Math.cos(a)*r,y,Math.sin(a)*r);
+  const t=terrainAt({x:d[0],y:d[1],z:d[2]});
+  if(!t.isLand || t.landElevation>.68 || t.mountainMask>.58)continue;
+  // Leave occasional clearings and make density vary in broad, natural patches.
+  const patch=rnd(Math.floor(i/7)+100);
+  if(patch<.13)continue;
+  const h=.014+rnd(i+4)*.025;
+  const trunkR=.0011+rnd(i+9)*.0009;
+  const base=[d[0]*(t.height+.0015),d[1]*(t.height+.0015),d[2]*(t.height+.0015)];
+  addTrunk(trunks,ti,base,d,h*.52,trunkR,5);
+  const foliageType=Math.min(2,Math.floor(rnd(i+23)*3));
+  const group=foliage[foliageType];
+  const trunkTop=base.map((v,k)=>v+d[k]*h*.42);
+  // Two overlapping tiers make each tree read as a small layered canopy,
+  // rather than a single bare cone. Sizes and colors vary per tree.
+  addCone(group.pos,group.idx,trunkTop,d,h*.78,trunkR*5.0,7);
+  const upper=trunkTop.map((v,k)=>v+d[k]*h*.28);
+  addCone(group.pos,group.idx,upper,d,h*.65,trunkR*3.6,7);
+  planted++;
  }
- return [mesh(app,trunks,ti,[.30,.18,.08,1]),mesh(app,leaves,li,[.10,.32,.12,1])];
+ const result=[];
+ if(trunks.length)result.push(mesh(app,trunks,ti,[.25,.16,.075,1]));
+ for(const f of foliage)if(f.pos.length)result.push(mesh(app,f.pos,f.idx,f.color));
+ return result;
 }
