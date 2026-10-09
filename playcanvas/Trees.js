@@ -60,7 +60,8 @@ export function createTrees(app,count=2600){
   if(patch<.13)continue;
   const h=.014+rnd(i+4)*.025;
   const trunkR=.0011+rnd(i+9)*.0009;
-  const base=[d[0]*(t.height+.0015),d[1]*(t.height+.0015),d[2]*(t.height+.0015)];
+  const baseRadius=Math.max(t.height,1.007)+.002;
+  const base=[d[0]*baseRadius,d[1]*baseRadius,d[2]*baseRadius];
   addTrunk(trunks,ti,base,d,h*.52,trunkR,5);
   const foliageType=Math.min(2,Math.floor(rnd(i+23)*3));
   const group=foliage[foliageType];
