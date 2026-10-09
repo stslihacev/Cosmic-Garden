@@ -260,10 +260,37 @@ export function createPlanet(app){
  const terrain=vertices.map(d=>terrainAt({x:d[0],y:d[1],z:d[2]}));
  const surface=vertices.map((d,i)=>{
   const t=terrain[i];
-  // Keep land above the ocean shell while retaining the existing macro relief.
-  const radius=t.isLand?Math.max(t.height,1.007):1.0;
+  // Add real geometric relief at several scales, not just color noise.
+  // The amplitudes are deliberately subtle so the planet stays smooth from orbit.
+  const fineRelief=t.isLand
+   ? ((t.detail??0.5)-0.5)*0.007
+     +((t.micro??0.5)-0.5)*0.003
+     +((t.grain??0.5)-0.5)*0.001
+   : 0;
+  const radius=t.isLand?Math.max(t.height+fineRelief,1.007):1.0;
   return [d[0]*radius,d[1]*radius,d[2]*radius];
  });
+ // Calculate smooth normals from the displaced surface itself. Radial normals
+ // made even raised mountains shade like a painted sphere, hiding their shape.
+ const surfaceNormals=vertices.map(()=>[0,0,0]);
+ for(const [ia,ib,ic] of faces){
+  const a=surface[ia],b=surface[ib],c=surface[ic];
+  const ab=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+  const ac=[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
+  let n=[
+   ab[1]*ac[2]-ab[2]*ac[1],
+   ab[2]*ac[0]-ab[0]*ac[2],
+   ab[0]*ac[1]-ab[1]*ac[0]
+  ];
+  const center=[a[0]+b[0]+c[0],a[1]+b[1]+c[1],a[2]+b[2]+c[2]];
+  if(n[0]*center[0]+n[1]*center[1]+n[2]*center[2]<0)n=n.map(v=>-v);
+  for(const idx of [ia,ib,ic]){
+   surfaceNormals[idx][0]+=n[0];
+   surfaceNormals[idx][1]+=n[1];
+   surfaceNormals[idx][2]+=n[2];
+  }
+ }
+ for(let i=0;i<surfaceNormals.length;i++)surfaceNormals[i]=normalize(surfaceNormals[i]);
 
  // Find connected landmasses using the actual icosphere topology. The four
  // largest continents become forest, winter, desert and grassland respectively.
@@ -300,7 +327,7 @@ export function createPlanet(app){
   for(const index of [ia,ib,ic]){
    const d=vertices[index],p=surface[index];
    positions.push(...p);
-   normals.push(...normalize(d));
+   normals.push(...surfaceNormals[index]);
    colors.push(terrain[index].isLand?1:0,0,0,1);
   }
   indices.push(start,start+1,start+2);
