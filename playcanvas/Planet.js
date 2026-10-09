@@ -46,6 +46,7 @@ function buildIcosphere(subdivisions=6){
 // a small equirectangular image. This keeps fine detail crisp when zooming in.
 const vertexShader=`
 attribute vec3 aPosition;
+attribute vec3 aNormal;
 attribute vec4 aColor;
 uniform mat4 matrix_model;
 uniform mat4 matrix_viewProjection;
@@ -58,7 +59,9 @@ void main(void) {
     vLand = aColor.r;
     vec4 worldPos = matrix_model * vec4(aPosition, 1.0);
     vWorldPos = worldPos.xyz;
-    vWorldNormal = normalize(mat3(matrix_model) * normalize(aPosition));
+    // Use the actual terrain normals calculated from displaced triangles.
+    // Radial normals made every hill light like a perfectly smooth sphere.
+    vWorldNormal = normalize(mat3(matrix_model) * aNormal);
     gl_Position = matrix_viewProjection * worldPos;
 }
 `;
