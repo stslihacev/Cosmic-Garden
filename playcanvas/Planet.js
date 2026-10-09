@@ -152,7 +152,7 @@ void main(void) {
     // Terrain.js classifies a vertex as land at landField ~= 0.495.
     // Keep the shader mask aligned with that same boundary so ocean blue does
     // not wash across low-lying land far inside a continent.
-    float land=sm(0.492,0.498,landField);
+    float land=sm(0.488,0.503,landField);
 
     // Deep ocean colour remains visible through the transparent coastal mask.
     vec3 ocean=mix(vec3(0.004,0.025,0.075),vec3(0.012,0.095,0.16),
@@ -186,10 +186,14 @@ void main(void) {
     float wetMask=smoothstep(0.74,0.86,moisture);
     // Each connected landmass receives one stable biome on the CPU.
     // Moisture remains available for small local variation, not continent-wide recolouring.
-    float forestContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-0.0));
-    float winterContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-1.0));
-    float desertContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-2.0));
-    float grassContinent=1.0-smoothstep(0.35,0.65,abs(vBiome-3.0));
+    // This is the first forest-planet pass: keep every landmass in the forest
+    // palette. Per-vertex continent IDs can interpolate across triangle edges
+    // and create false biome patches, so other planet types will use a separate
+    // explicit biome map instead of relying on this attribute.
+    float forestContinent=1.0;
+    float winterContinent=0.0;
+    float desertContinent=0.0;
+    float grassContinent=0.0;
     vec3 winterColor=vec3(0.70,0.82,0.88);
     vec3 landColor=forestColor*forestContinent
                   +winterColor*winterContinent
