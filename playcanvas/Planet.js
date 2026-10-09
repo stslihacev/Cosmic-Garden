@@ -151,9 +151,10 @@ void main(void) {
     vec3 ocean=mix(vec3(0.004,0.025,0.075),vec3(0.012,0.095,0.16),
                    sm(0.30,0.72,fbm(d*8.0+vec3(2.0,17.0,4.0))));
 
-    float moistureRaw=fbm(warped*7.0+vec3(-41.0,13.0,22.0))*0.72
-                     +fbm(warped*23.0+vec3(9.0,-7.0,5.0))*0.28;
-    float moisture=clamp((moistureRaw-0.39)/0.22,0.0,1.0);
+    // Match Terrain.js moisture scales so biome regions remain broad and coherent.
+    float moistureRaw=terrainFbm(warped*3.1+vec3(-41.0,13.0,22.0),5)*0.72
+                     +terrainFbm(warped*11.0+vec3(9.0,-7.0,5.0),4)*0.28;
+    float moisture=clamp((moistureRaw-0.405)/0.19,0.0,1.0);
     float latitude=abs(d.y);
 
     float mountainBase=ridge(warped*11.0+vec3(33.0,-17.0,9.0));
@@ -176,10 +177,11 @@ void main(void) {
     float grassMask=smoothstep(0.34,0.47,moisture)*(1.0-smoothstep(0.57,0.68,moisture));
     float forestMask=smoothstep(0.52,0.66,moisture)*(1.0-smoothstep(0.78,0.88,moisture));
     float wetMask=smoothstep(0.74,0.86,moisture);
-    vec3 landColor=desertColor*dryMask+grassColor*grassMask
-                  +forestColor*forestMask+wetForestColor*wetMask;
-    float biomeTotal=max(dryMask+grassMask+forestMask+wetMask,0.001);
-    landColor/=biomeTotal;
+    // Ordered transitions: broad biome masks define regions; fine noise only decorates them.
+    vec3 landColor=desertColor;
+    landColor=mix(landColor,grassColor,grassMask);
+    landColor=mix(landColor,forestColor,forestMask);
+    landColor=mix(landColor,wetForestColor,wetMask);
 
     // High-contrast, spatially coherent surface structures. Thresholded noise
     // creates readable vegetation clusters and exposed-soil patches rather
