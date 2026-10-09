@@ -53,7 +53,6 @@ varying vec3 vLocalDir;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
 varying float vBiome;
-varying float vBiome;
 void main(void) {
     vLocalDir = normalize(aPosition);
     vBiome = aColor.r * 4.0;
@@ -69,6 +68,7 @@ precision highp float;
 varying vec3 vLocalDir;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
+varying float vBiome;
 
 // These noise functions mirror Terrain.js so the coastline rendered by
 // the shader follows the same field that determines the actual land mesh.
