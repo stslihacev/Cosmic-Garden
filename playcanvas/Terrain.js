@@ -88,11 +88,12 @@ export function terrainAt(d){
 
  // Moisture is deliberately separate from elevation. That gives us forests,
  // plains and dry regions instead of a single altitude-based paint gradient.
- const moisture=clamp(
+ const moistureRaw=
    fbm(x*3.1-41,y*3.1+13,z*3.1+22,5)*.72+
-   fbm(x*11+9,y*11-7,z*11+5,4)*.28,
-   0,1
- );
+   fbm(x*11+9,y*11-7,z*11+5,4)*.28;
+ // FBM naturally clusters around its midpoint. Expand its useful range so
+ // deserts, grasslands and humid forests occupy genuinely different regions.
+ const moisture=clamp((moistureRaw-.405)/.19,0,1);
 
  return {
   isLand:true,land,elevation,detail,micro,grain,
