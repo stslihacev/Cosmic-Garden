@@ -225,14 +225,19 @@ void main(void) {
     landColor*=mix(0.72,1.16,microMarks);
     landColor*=0.84+macroDetail*0.32;
 
-    vec3 rock=mix(vec3(0.24,0.235,0.21),vec3(0.53,0.49,0.41),mountainRidge);
-    float rockySurface=smoothstep(0.25,0.55,mountain)*(1.0-winterContinent);
-    float rockStrata=smoothstep(0.44,0.64,noise3(warped*185.0+vec3(37.0,-8.0,14.0)));
-    rock=mix(rock,vec3(0.62,0.57,0.47),rockStrata*0.48);
+    vec3 rock=mix(vec3(0.20,0.205,0.19),vec3(0.56,0.52,0.44),mountainRidge);
+    // mountain is already a product of two soft masks, so the old 0.25-0.55
+    // rock threshold suppressed almost every ridge. Start coloring at lower
+    // values and keep the forest visible only in valleys and foothills.
+    float rockySurface=smoothstep(0.035,0.24,mountain)*(1.0-winterContinent);
+    float rockStrata=smoothstep(0.39,0.62,noise3(warped*185.0+vec3(37.0,-8.0,14.0)));
+    float rockGrain=noise3(warped*330.0+vec3(-23.0,16.0,8.0));
+    rock=mix(rock,vec3(0.66,0.61,0.52),rockStrata*0.52);
+    rock*=mix(0.78,1.13,rockGrain);
     landColor=mix(landColor,rock,rockySurface*0.98);
     float snow=max(winterContinent,
-                   max(sm(0.72,0.94,mountain+macroDetail*0.13),
-                       sm(0.70,0.96,latitude)*sm(0.42,0.72,mountain)*0.75));
+                   max(sm(0.58,0.83,mountain+macroDetail*0.10),
+                       sm(0.70,0.96,latitude)*sm(0.30,0.60,mountain)*0.75));
     landColor=mix(landColor,vec3(0.82,0.86,0.91),snow);
 
     // Thin, irregular shoreline highlights the shape of the coast.
