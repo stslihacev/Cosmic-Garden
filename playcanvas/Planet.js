@@ -1,4 +1,5 @@
 import * as pc from "playcanvas";
+import { terrainAt } from "./Terrain.js";
 
 const PHI=(1+Math.sqrt(5))/2;
 
@@ -183,9 +184,12 @@ void main(void) {
 
 export function createPlanet(app){
  const {vertices,faces}=buildIcosphere(6);
- const surface=vertices.map(d=>[
-   d[0]*1.006,d[1]*1.006,d[2]*1.006
- ]);
+ const surface=vertices.map(d=>{
+  const t=terrainAt({x:d[0],y:d[1],z:d[2]});
+  // Keep land above the ocean shell while retaining the existing macro relief.
+  const radius=t.isLand?Math.max(t.height,1.007):1.0;
+  return [d[0]*radius,d[1]*radius,d[2]*radius];
+ });
  const positions=[],normals=[],indices=[];
  for(const [ia,ib,ic] of faces){
   const start=positions.length/3;
