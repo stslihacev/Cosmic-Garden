@@ -66,15 +66,15 @@ varying vec3 vLocalDir;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
 
+// These noise functions mirror Terrain.js so the coastline rendered by
+// the shader follows the same field that determines the actual land mesh.
 float hash31(vec3 p) {
-    p = fract(p * 0.1031);
-    p += dot(p, p.yzx + 33.33);
-    return fract((p.x + p.y) * p.z);
+    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7)) + 42.0) * 43758.5453);
 }
 float noise3(vec3 p) {
     vec3 i = floor(p);
     vec3 f = fract(p);
-    f = f*f*(3.0-2.0*f);
+    f = f*f*f*(f*(f*6.0-15.0)+10.0);
     float n000=hash31(i+vec3(0.0,0.0,0.0));
     float n100=hash31(i+vec3(1.0,0.0,0.0));
     float n010=hash31(i+vec3(0.0,1.0,0.0));
@@ -88,6 +88,28 @@ float noise3(vec3 p) {
     float x01=mix(n001,n101,f.x);
     float x11=mix(n011,n111,f.x);
     return mix(mix(x00,x10,f.y),mix(x01,x11,f.y),f.z);
+}
+float terrainFbm(vec3 p, int octaves) {
+    float value=0.0;
+    float amplitude=1.0;
+    float frequency=1.0;
+    float total=0.0;
+    for(int i=0;i<7;i++) {
+        if(i<octaves) {
+            value+=noise3(p*frequency)*amplitude;
+            total+=amplitude;
+            amplitude*=0.5;
+            frequency*=2.01;
+        }
+    }
+    return value/max(total,0.0001);
+}
+vec3 terrainWarp(vec3 d) {
+    return d + vec3(
+        (terrainFbm(d*1.9+vec3(19.0,-7.0,3.0),4)-0.5)*0.28,
+        (terrainFbm(d*1.9+vec3(-11.0,17.0,29.0),4)-0.5)*0.28,
+        (terrainFbm(d*1.9+vec3(31.0,5.0,-13.0),4)-0.5)*0.28
+    );
 }
 float fbm(vec3 p) {
     float v=0.0;
@@ -116,17 +138,14 @@ float sm(float a,float b,float x) {
 }
 void main(void) {
     vec3 d=normalize(vLocalDir);
-    vec3 warped=d+(vec3(
-        fbm(d*3.0+vec3(13.0,2.0,7.0)),
-        fbm(d*3.0+vec3(31.0,9.0,17.0)),
-        fbm(d*3.0+vec3(5.0,27.0,11.0))
-    )-0.5)*0.22;
-
-    float continent=fbm(warped*3.2+vec3(5.0,-9.0,17.0))*0.72
-                   +fbm(warped*6.4+vec3(-13.0,7.0,2.0))*0.28;
-    float coastDetail=fbm(warped*18.0+vec3(8.0,-21.0,14.0));
-    float landField=continent+(coastDetail-0.5)*0.10;
-    float land=sm(0.465,0.535,landField);
+    // Match Terrain.js exactly for the large-scale continent and coastline.
+    vec3 warped=terrainWarp(d);
+    float macro=terrainFbm(warped*1.35+vec3(5.0,-9.0,17.0),7)*0.72
+               +terrainFbm(warped*2.7+vec3(-13.0,7.0,2.0),5)*0.28;
+    float coastNoise=terrainFbm(warped*7.5+vec3(8.0,-21.0,14.0),5);
+    float landField=macro+(coastNoise-0.5)*0.105;
+    float continent=macro;
+    float land=sm(0.435,0.555,landField);
 
     // Deep ocean colour remains visible through the transparent coastal mask.
     vec3 ocean=mix(vec3(0.004,0.025,0.075),vec3(0.012,0.095,0.16),
