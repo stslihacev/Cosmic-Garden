@@ -52,10 +52,10 @@ uniform mat4 matrix_viewProjection;
 varying vec3 vLocalDir;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
-varying float vBiome;
+varying float vLand;
 void main(void) {
     vLocalDir = normalize(aPosition);
-    vBiome = aColor.r * 4.0;
+    vLand = aColor.r;
     vec4 worldPos = matrix_model * vec4(aPosition, 1.0);
     vWorldPos = worldPos.xyz;
     vWorldNormal = normalize(mat3(matrix_model) * normalize(aPosition));
@@ -68,7 +68,7 @@ precision highp float;
 varying vec3 vLocalDir;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
-varying float vBiome;
+varying float vLand;
 
 // These noise functions mirror Terrain.js so the coastline rendered by
 // the shader follows the same field that determines the actual land mesh.
@@ -152,7 +152,10 @@ void main(void) {
     // Terrain.js classifies a vertex as land at landField ~= 0.495.
     // Keep the shader mask aligned with that same boundary so ocean blue does
     // not wash across low-lying land far inside a continent.
-    float land=sm(0.488,0.503,landField);
+    // Use the exact CPU land classification for the surface mask. Recomputing
+    // the coastline independently in the fragment shader caused ocean-colored
+    // pixels to appear inside land, especially across mountain regions.
+    float land=sm(0.02,0.98,vLand);
 
     // Deep ocean colour remains visible through the transparent coastal mask.
     vec3 ocean=mix(vec3(0.004,0.025,0.075),vec3(0.012,0.095,0.16),
@@ -289,7 +292,7 @@ export function createPlanet(app){
    const d=vertices[index],p=surface[index];
    positions.push(...p);
    normals.push(...normalize(d));
-   colors.push(biomeByVertex[index]/4,0,0,1);
+   colors.push(terrain[index].isLand?1:0,0,0,1);
   }
   indices.push(start,start+1,start+2);
  }
